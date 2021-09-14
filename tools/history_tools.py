@@ -1,10 +1,10 @@
 import argparse
 
-import logger
+from tools import logger
 from mps_database.mps_config import MPSConfig, models
 
 
-from mps_history.models import fault_history, mitigation_history, analog_history, bypass_history, input_history
+from models import fault_history, mitigation_history, analog_history, bypass_history, input_history
 from sqlalchemy import insert, select
 
 

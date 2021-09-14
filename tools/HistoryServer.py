@@ -2,7 +2,7 @@ import socket, sys, argparse, datetime, errno
 from ctypes import *
 
 from mps_database.mps_config import MPSConfig, models
-from mps_history.tools import history_tools, logger
+from tools import history_tools, logger
 
 
 class Message(Structure):
@@ -81,6 +81,7 @@ class HistoryServer:
         else:
             self.logger.log("DATA ERROR: Bad Message Type", message.to_string())
 
+"""
 def main():
 
     parser = argparse.ArgumentParser(description='Receive MPS history messages')
@@ -105,3 +106,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+"""

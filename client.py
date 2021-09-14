@@ -1,6 +1,7 @@
 from mps_database import mps_config, models
-from mps_history.tools import history_tools
-from mps_history.models import analog_history, bypass_history, input_history, fault_history, mitigation_history
+
+from tools import history_tools
+from models import analog_history, bypass_history, input_history, fault_history, mitigation_history
 from mps_database.models import Base
 
 from mps_database.mps_config import MPSConfig
@@ -9,8 +10,6 @@ from sqlalchemy import select
 from ctypes import *
 
 import socket, random, pprint, struct
-
-
 
 
 def main():
