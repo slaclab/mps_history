@@ -7,6 +7,7 @@ echo 'Starting History Server...'
 if [ `hostname` == 'lcls-dev3' ]; then
   eval "$(conda shell.bash hook)"
   conda activate mps-environment
+  source $TOOLS/script/ENVS64.bash
 fi
 if [ `hostname` == 'PC94483' ]; then
   eval "$(conda shell.bash hook)"
