@@ -6,8 +6,8 @@ echo 'Starting History Server...'
 # Eval lets us avoid running conda init each time
 if [ `hostname` == 'lcls-dev3' ]; then
   eval "$(conda shell.bash hook)"
-  conda activate mps-environment
   source $TOOLS/script/ENVS64.bash
+  conda activate mps-environment
 fi
 if [ `hostname` == 'PC94483' ]; then
   eval "$(conda shell.bash hook)"
