@@ -108,7 +108,7 @@ def create_history_tables(tables, db_path):
     Creates all tables to be used in the history database.
     Should not be called regularly.
     """
-    history_engine = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
+    history_engine = MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
     Base.metadata.create_all(history_engine, tables=tables)
     return
 
@@ -120,7 +120,7 @@ def delete_history_db(tables, db_path):
     #Add function to delete all tables/rows
     try:
         meta = models.Base.metadata
-        meta.bind = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
+        meta.bind = MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
         meta.drop_all(tables=tables)
     except exc.OperationalError as e:
         print("Database does not exist, cannot delete")
