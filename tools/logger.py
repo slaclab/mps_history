@@ -12,7 +12,7 @@ class Logger:
             dev = True
             #dir_name = os.path.dirname(self.log_file_name)
             if dev:
-                base_name = "/u/cd/lking/mps/mps_logs"
+                base_name = "/u/cd/lking/mps/mps_logs/"
                 #base_name = "/u1/lcls/physics/mps_database/mps_database" 
             else:
                 base_name = "/Users/lking/Documents/Projects/mps_database/test_logs/mps_database"
