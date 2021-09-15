@@ -10,7 +10,10 @@ def main():
     args = parser.parse_args()
 
     #host = socket.gethostname()
-    host = '127.0.0.1'
+    if args.host:
+        host = args.host
+    else:
+        host = '127.0.0.1'
 
     #Set default port number
     if args.port:

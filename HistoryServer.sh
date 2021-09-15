@@ -23,7 +23,7 @@ echo "Conda environment activated: $CONDA_PREFIX"
 if [ `hostname` == 'lcls-dev3' ]; then
   echo "lcls-dev3"
   #$PHYSICS_TOP/mps_history/start_history.py --port 3356 --dev
-  /u/cd/lking/mps/mps_history/start_history.py --port 3356
+  /u/cd/lking/mps/mps_history/start_history.py --port 3356 --host lcls-dev3
 fi
 if [ `hostname` == 'PC94483' ]; then
   echo "test local"
