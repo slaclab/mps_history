@@ -23,25 +23,26 @@ def main():
         #sample file path for testing on lcls-dev3
         file_path = "/u/cd/lking/mps/mps_history"
         #file_path = "/u1/lcls/physics/mps_history"
+        host = "lcls-dev3"
     else:
         file_path = None
+        host = '127.0.0.1'
 
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__, mitigation_history.MitigationHistory.__table__]
         delete_history_db(tables)
         create_history_db(tables, file_path=file_path)
 
-    create_socket()
+    create_socket(host)
     return
 
-def create_socket():
+def create_socket(host):
     """
     Acts as a client to connect to HistoryServer backend. 
 
     Creates a socket and sends over generated test insert data.
     """
-    host = '127.0.0.1'
-    #host = "192.168.0.215"
+
     port = 3356
     
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
