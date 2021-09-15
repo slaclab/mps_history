@@ -16,11 +16,13 @@ def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
-    dev = False
-    restart = False
+    dev = True
+    restart = True
 
     if dev:
-        file_path = "/u1/lcls/physics/mps_history"
+        #sample file path for testing on lcls-dev3
+        file_path = "/u/cd/lking/mps/mps_history"
+        #file_path = "/u1/lcls/physics/mps_history"
     else:
         file_path = None
 
