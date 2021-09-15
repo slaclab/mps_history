@@ -36,7 +36,7 @@ class HistoryServer:
         self.history_db = HistorySession.HistorySession(dev=dev)
               # create dgram udp socket
         
-        print(self.host)
+        print("Host in server: ", self.host)
 
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
