@@ -9,7 +9,7 @@ class Logger:
         if filename:
             self.filename = filename
         else:
-            dev = False
+            dev = True
             #dir_name = os.path.dirname(self.log_file_name)
             if dev:
                 base_name = "/u/cd/lking/mps/mps_logs"
