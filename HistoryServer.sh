@@ -2,21 +2,30 @@
 #This file has been copied & edited from the depreciated EicHistoryServer.
 echo 'Starting History Server...'
 
-#Set the conda environment
-conda activate mps-environment
-
-#TODO: get the right python version/configurations 
-#. $TOOLS/script/go_python2.7.13.bash
-#export PYTHONPATH=$PHYSICS_TOP/mps_database:$PYTHON_PATH
+# Set the conda environment
+# Eval lets us avoid running conda init each time
+if [ `hostname` == 'lcls-dev3' ]; then
+  eval "$(conda shell.bash hook)"
+  conda activate mps-environment
+fi
+if [ `hostname` == 'PC94483' ]; then
+  eval "$(conda shell.bash hook)"
+  conda activate mps-environment
+fi
+# Test if the environment worked
+echo "Conda environment activated: $CONDA_PREFIX"
 
 #TODO: do I need this?
-current_db=$PHYSICS_TOP/mps_configuration/current
-files=`ls $current_db/mps_config*.db | grep -v runtime |  wc -l`
+#current_db=$PHYSICS_TOP/mps_configuration/current
+#files=`ls $current_db/mps_config*.db | grep -v runtime |  wc -l`
 
+#TODO: Add one in for prod
+if [ `hostname` == 'lcls-dev3' ]; then
+  echo "lcls-dev3"
+  $PHYSICS_TOP/mps_history/start_history.py --port 3356 --dev
+fi
+if [ `hostname` == 'PC94483' ]; then
+  echo "test local"
+  python start_history.py --port 3356  
+fi
 
-#TODO: set database location for new history server
-#db_file=`ls $current_db/mps_config*.db | grep -v runtime`
-
-#TODO: do we need this file size parameter?   --file-size `echo '1024*1024*10'|bc -l` &
-#TODO:this might be the same?
-$PHYSICS_TOP/mps_history/start_history.py --port 3356

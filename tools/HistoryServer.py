@@ -2,7 +2,7 @@ import socket, sys, argparse, datetime, errno
 from ctypes import *
 
 from mps_database.mps_config import MPSConfig, models
-from tools import history_tools, logger
+from tools import HistorySession, logger
 
 
 class Message(Structure):
@@ -26,13 +26,14 @@ class HistoryServer:
     """
     Most of this class has been taken from the depreciated EicHistory.py server. 
     """
-    def __init__(self, host, port):
+    def __init__(self, host, port, dev):
         self.host = host
         self.port = port
+        self.dev = dev
         self.sock = None
         self.logger = logger.Logger(stdout=True)
 
-        self.history_db = history_tools.HistorySession()
+        self.history_db = HistorySession.HistorySession(dev=dev)
               # create dgram udp socket
         
         print(self.host)
@@ -80,30 +81,3 @@ class HistoryServer:
             self.history_db.add_analog(message)
         else:
             self.logger.log("DATA ERROR: Bad Message Type", message.to_string())
-
-"""
-def main():
-
-    parser = argparse.ArgumentParser(description='Receive MPS history messages')
-    parser.add_argument('--port', metavar='port', type=int, nargs='?', help='server port (default=3356)')
-    parser.add_argument('--database', metavar='db', nargs=1, default='mps_gun_history.db', 
-                        help='database file name (e.g. mps_gun_history.db)')
-    args = parser.parse_args()
-
-    #host = socket.gethostname()
-    host = '127.0.0.1'
-
-    #Set default port number
-    if args.port:
-        port = args.port
-    else:    
-        port=1234
-
-    hist = HistoryServer(host, port)
-    hist.listen_socket()                        
-    return
-
-
-if __name__ == "__main__":
-    main()
-"""

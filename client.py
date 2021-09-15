@@ -1,6 +1,6 @@
 from mps_database import mps_config, models
 
-from tools import history_tools
+from tools import HistorySession
 from models import analog_history, bypass_history, input_history, fault_history, mitigation_history
 from mps_database.models import Base
 
@@ -16,23 +16,20 @@ def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
+    dev = False
+    restart = False
 
-    #tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__, mitigation_history.MitigationHistory.__table__]
-    #delete_history_db(tables)
-    #create_history_db(tables)
+    if dev:
+        file_path = "/u1/lcls/physics/mps_history"
+    else:
+        file_path = None
+
+    if restart:
+        tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__, mitigation_history.MitigationHistory.__table__]
+        delete_history_db(tables)
+        create_history_db(tables, file_path=file_path)
 
     create_socket()
-    """
-    hist = history_tools.HistorySession()
-    print("Getting Faults")
-    print(hist.get_last_faults())
-    fid=3
-    print("Getting Fault number ", fid)
-    print(hist.get_entry_by_id(fid))
-    """
-
-
-
     return
 
 def create_socket():
@@ -43,7 +40,7 @@ def create_socket():
     """
     host = '127.0.0.1'
     #host = "192.168.0.215"
-    port = 1234
+    port = 3356
     
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((host, port))
@@ -96,14 +93,13 @@ def create_bad_data():
     test_data = [fault, analog_bypass, digital_bypass, mitigation, device_input, analog, random_data]
     return test_data
 
-def create_history_db(tables):
+def create_history_db(tables, file_path):
     """
     Creates all tables to be used in the history database.
     Should not be called regularly.
     """
-    history_engine = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history").last_engine
+    history_engine = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=file_path).last_engine
     Base.metadata.create_all(history_engine, tables=tables)
-    #build_fault_table("test").__table__.create(bind = config_engine.last_engine)
     return
 
 def delete_history_db(tables):

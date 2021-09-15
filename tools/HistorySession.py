@@ -9,11 +9,19 @@ from sqlalchemy import insert, select
 
 
 class HistorySession():
-    def __init__(self):
+    def __init__(self, dev=None):
+        self.dev = dev
         self.history_conn = None
         self.conf_conn = None
         self.logger = logger.Logger(stdout=True)
-        
+
+        if self.dev:
+            self.default_dbs = {"runtime": "/u1/lcls/physics/mps_manager", "config":"$PHYSICS_TOP/mps_configuration/current", "history": "/u1/lcls/physics/mps_history"}
+        else:
+            self.default_dbs = {"runtime": None, "config": None, "history":None}
+        print("Dev is:", dev)
+        print(self.default_dbs)
+
         self.connect_conf_db()
         self.connect_hist_db()
 
@@ -33,7 +41,7 @@ class HistorySession():
         """
         Adds a single fault to the fault_history table in the history database
 
-        Adds in the fault desctiption, "inactive"/"active" for the state changes, and the device state name
+        Adds in the fault description, "inactive"/"active" for the state changes, and the device state name
         """
         try:        
             # Set the optional auxillary data and get the official fault id
@@ -196,7 +204,7 @@ class HistorySession():
         """
         db_file = 'mps_gun_history.db'
         try:
-            self.history_conn = MPSConfig(db_name="history", db_file=db_file)
+            self.history_conn = MPSConfig(db_name="history", db_file=db_file, file_path=self.default_dbs["history"])
         except:
             self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))
         return
@@ -209,7 +217,7 @@ class HistorySession():
         #TODO: add cli args later
         db_file = 'mps_config_imported.db'
         try:
-            self.conf_conn = MPSConfig(db_name="config", db_file=db_file)
+            self.conf_conn = MPSConfig(db_name="config", db_file=db_file, file_path=self.default_dbs["config"])
         except:
             self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))
         return
