@@ -21,18 +21,18 @@ def main():
 
     if dev:
         #sample file path for testing on lcls-dev3
-        file_path = "/u/cd/lking/mps/mps_history"
+        db_path = "/u/cd/lking/mps/mps_history"
         #file_path = "/u1/lcls/physics/mps_history"
         host = "lcls-dev3"
     else:
-        file_path = None
+        db_path = None
         host = '127.0.0.1'
 
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__, mitigation_history.MitigationHistory.__table__]
-        delete_history_db(tables)
-        create_history_db(tables, file_path=file_path)
-
+        #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
+        delete_history_db(tables, db_path=db_path)
+        create_history_tables(tables, db_path=db_path)
     create_socket(host)
     return
 
@@ -96,23 +96,23 @@ def create_bad_data():
     test_data = [fault, analog_bypass, digital_bypass, mitigation, device_input, analog, random_data]
     return test_data
 
-def create_history_db(tables, file_path):
+def create_history_tables(tables, db_path):
     """
     Creates all tables to be used in the history database.
     Should not be called regularly.
     """
-    history_engine = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=file_path).last_engine
+    history_engine = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
     Base.metadata.create_all(history_engine, tables=tables)
     return
 
-def delete_history_db(tables):
+def delete_history_db(tables, db_path):
     """
     Deletes all data in tables in the history database. 
     Note: Does not remove empty table definitions from db.
     """
     #Add function to delete all tables/rows
     meta = models.Base.metadata
-    meta.bind = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history").last_engine
+    meta.bind = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
     meta.drop_all(tables=tables)
     return
 
