@@ -16,7 +16,7 @@ class HistorySession():
         self.logger = logger.Logger(stdout=True)
 
         if self.dev:
-            self.default_dbs = {"runtime": "/u1/lcls/physics/mps_manager", "config":"$PHYSICS_TOP/mps_configuration/current", "history": "/u/cd/lking/mps/mps_history"}
+            self.default_dbs = {"runtime": "/u1/lcls/physics/mps_manager", "config":"/afs/slac/g/lcls/physics/mps_configuration/current", "history": "/u/cd/lking/mps/mps_history"}
             #self.default_dbs = {"runtime": "/u1/lcls/physics/mps_manager", "config":"$PHYSICS_TOP/mps_configuration/current", "history": "/u1/lcls/physics/mps_history"}
         else:
             self.default_dbs = {"runtime": None, "config": None, "history":None}

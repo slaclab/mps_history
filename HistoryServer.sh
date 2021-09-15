@@ -6,7 +6,7 @@ echo 'Starting History Server...'
 # Eval lets us avoid running conda init each time
 if [ `hostname` == 'lcls-dev3' ]; then
   eval "$(conda shell.bash hook)"
-  source $TOOLS/script/ENVS64.bash
+  #source $TOOLS/script/ENVS64.bash
   conda activate mps-environment
 fi
 if [ `hostname` == 'PC94483' ]; then
@@ -24,6 +24,7 @@ echo "Conda environment activated: $CONDA_PREFIX"
 if [ `hostname` == 'lcls-dev3' ]; then
   echo "lcls-dev3"
   #$PHYSICS_TOP/mps_history/start_history.py --port 3356 --dev
+  export PYTHONPATH=$PYTHON_PATH:"/afs/slac/g/lcls/package/anaconda/2020.11/envs/mps-environment/bin/python":"/afs/slac.stanford.edu/u/cd/lking/mps/mps_database"
   python /u/cd/lking/mps/mps_history/start_history.py --port 3356 --host lcls-dev3 --dev
 fi
 if [ `hostname` == 'PC94483' ]; then
