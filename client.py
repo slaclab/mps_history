@@ -1,3 +1,4 @@
+import sqlalchemy
 from mps_database import mps_config, models
 
 from tools import HistorySession
@@ -5,7 +6,7 @@ from models import analog_history, bypass_history, input_history, fault_history,
 from mps_database.models import Base
 
 from mps_database.mps_config import MPSConfig
-from sqlalchemy import select
+from sqlalchemy import select, exc
 
 from ctypes import *
 
@@ -34,6 +35,12 @@ def main():
         delete_history_db(tables, db_path=db_path)
         create_history_tables(tables, db_path=db_path)
     create_socket(host)
+    return
+
+def create_db(db_path):
+    db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
+    create_engine = sqlalchemy.create_engine(db_url)
+    create_engine.execute("CREATE DATABASE mps_gun_history")
     return
 
 def create_socket(host):
@@ -111,9 +118,13 @@ def delete_history_db(tables, db_path):
     Note: Does not remove empty table definitions from db.
     """
     #Add function to delete all tables/rows
-    meta = models.Base.metadata
-    meta.bind = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
-    meta.drop_all(tables=tables)
+    try:
+        meta = models.Base.metadata
+        meta.bind = mps_config.MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
+        meta.drop_all(tables=tables)
+    except exc.OperationalError as e:
+        print("Database does not exist, cannot delete")
+        create_db(db_path=db_path)
     return
 
 if __name__ == "__main__":
