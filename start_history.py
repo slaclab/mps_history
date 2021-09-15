@@ -4,6 +4,7 @@ from tools import HistoryServer
 def main():
     parser = argparse.ArgumentParser(description='Receive MPS history messages')
     parser.add_argument('--port', metavar='port', type=int, nargs='?', help='server port (default=3356)')
+    parser.add_argument('--host', metavar='host', help='Server Host (default=localhost)')
     parser.add_argument('--database', metavar='db', nargs=1, default='mps_gun_history.db', 
                         help='database file name (e.g. mps_gun_history.db)')
     parser.add_argument('--dev', action='store_true', help='flag for lcls-dev3 db paths')
