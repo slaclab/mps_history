@@ -6,6 +6,7 @@ def main():
     parser.add_argument('--port', metavar='port', type=int, nargs='?', help='server port (default=3356)')
     parser.add_argument('--database', metavar='db', nargs=1, default='mps_gun_history.db', 
                         help='database file name (e.g. mps_gun_history.db)')
+    parser.add_argument('--dev', action='store_true', help='flag for lcls-dev3 db paths')
     args = parser.parse_args()
 
     #host = socket.gethostname()
@@ -15,9 +16,14 @@ def main():
     if args.port:
         port = args.port
     else:    
-        port=1234
+        port=3356
 
-    hist = HistoryServer.HistoryServer(host, port)
+    if args.dev:
+        dev = True
+    else:
+        dev = False
+
+    hist = HistoryServer.HistoryServer(host, port, dev)
     hist.listen_socket()    
     return
 

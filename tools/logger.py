@@ -9,11 +9,14 @@ class Logger:
         if filename:
             self.filename = filename
         else:
+            dev = False
             #dir_name = os.path.dirname(self.log_file_name)
-
-            base_name = "/Users/lking/Documents/Projects/mps_database/test_logs/mps_database"
+            if dev:
+                base_name = "/u/cd/lking/workspace/mps_logs"
+                #base_name = "/u1/lcls/physics/mps_database/mps_database" 
+            else:
+                base_name = "/Users/lking/Documents/Projects/mps_database/test_logs/mps_database"
             # TODO: commented out for testing
-            #base_name = "/u1/lcls/physics/mps_database/mps_database" 
             self.filename = '{}-{}'.format(base_name, datetime.datetime.now().strftime('%Y.%m.%d %H:%M:%S'))  
         self.stdout = stdout
         self.connect_file()
