@@ -34,13 +34,7 @@ def main():
         #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
         delete_history_db(tables, db_path=db_path)
         create_history_tables(tables, db_path=db_path)
-    create_socket(host)
-    return
-
-def create_db(db_path):
-    db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
-    create_engine = sqlalchemy.create_engine(db_url)
-    create_engine.execute("CREATE DATABASE mps_gun_history")
+    #create_socket(host)
     return
 
 def create_socket(host):
@@ -108,8 +102,11 @@ def create_history_tables(tables, db_path):
     Creates all tables to be used in the history database.
     Should not be called regularly.
     """
-    history_engine = MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
-    Base.metadata.create_all(history_engine, tables=tables)
+    try:
+        history_engine = MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
+        Base.metadata.create_all(history_engine, tables=tables)
+    except:
+         print("ERROR: Unable to create tables in mps_gun_history.db")
     return
 
 def delete_history_db(tables, db_path):
@@ -123,8 +120,7 @@ def delete_history_db(tables, db_path):
         meta.bind = MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
         meta.drop_all(tables=tables)
     except exc.OperationalError as e:
-        print("Database does not exist, cannot delete")
-        create_db(db_path=db_path)
+        print("Database does not exist, cannot delete tables")
     return
 
 if __name__ == "__main__":
