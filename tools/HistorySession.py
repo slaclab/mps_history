@@ -53,7 +53,6 @@ class HistorySession():
             fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
         except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
-            print(e)
             return
         # Set the new state transition
         if message.new_value == 1:
@@ -217,7 +216,7 @@ class HistorySession():
         """
         # gun, runtime dbs hardcoded for now
         #TODO: add cli args later
-        db_file = 'mps_config_imported.db'
+        db_file = 'mps_config-2021-09-20-a.db'
         try:
             self.conf_conn = MPSConfig(db_name="config", db_file=db_file, file_path=self.default_dbs["config"])
         except:
