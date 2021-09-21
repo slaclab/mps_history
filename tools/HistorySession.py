@@ -51,8 +51,9 @@ class HistorySession():
             else:
                 device_state = None
             fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
-        except:
+        except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
+            print(e)
             return
         # Set the new state transition
         if message.new_value == 1:

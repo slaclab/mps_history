@@ -35,10 +35,10 @@ def main():
         #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
         delete_history_db(tables, db_path=db_path)
         create_history_tables(tables, db_path=db_path)
-    #create_socket(host)
+    create_socket(host, dev)
     return
 
-def create_socket(host):
+def create_socket(host, dev):
     """
     Acts as a client to connect to HistoryServer backend. 
 
@@ -50,22 +50,26 @@ def create_socket(host):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((host, port))
         # TODO: remove test data from this function
-        for data in generate_test_data():
+        for data in generate_test_data(dev):
             s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
         for data in create_bad_data():
             s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
 
     return
 
-def generate_test_data():
+def generate_test_data(dev):
     """
     Generates a suite of realistic test data for entering into the history db.
 
     Type number 3 is skipped because it is defined as "BypassValueType" in the central node ioc, and does not appear to be relevant
     """
-    DEV_CONFIG_PATH = "/afs/slac/g/lcls/physics/mps_configuration/current"
+    if dev:
+        DEV_CONFIG_PATH = "/afs/slac/g/lcls/physics/mps_configuration/current"
+        file_path = DEV_CONFIG_PATH
+    else:
+        file_path = None
 
-    conf_conn = MPSConfig(db_name="config", db_file='mps_config-2021-09-20-a.db', file_path=DEV_CONFIG_PATH)
+    conf_conn = MPSConfig(db_name="config", db_file='mps_config-2021-09-20-a.db', file_path=file_path)
     ad_select = select(models.AnalogDevice.id)
     ad_result = conf_conn.session.execute(ad_select)
     result = [r[0] for r in ad_result]
