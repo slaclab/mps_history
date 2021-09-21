@@ -68,7 +68,7 @@ def generate_test_data():
 
     Type number 3 is skipped because it is defined as "BypassValueType" in the central node ioc, and does not appear to be relevant
     """
-    conf_conn = MPSConfig(db_name="config", db_file='mps_config_imported.db')
+    conf_conn = MPSConfig(db_name="config", db_file='mps_config-2021-09-20-a.db')
     ad_select = select(models.AnalogDevice.id)
     ad_result = conf_conn.session.execute(ad_select)
     result = [r[0] for r in ad_result]
