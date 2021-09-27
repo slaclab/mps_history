@@ -31,7 +31,7 @@ class HistoryServer:
         self.port = port
         self.dev = dev
         self.sock = None
-        self.logger = logger.Logger(stdout=True)
+        self.logger = logger.Logger(stdout=True, dev=dev)
 
         self.history_db = HistorySession.HistorySession(dev=dev)
               # create dgram udp socket

@@ -1,4 +1,4 @@
-import argparse
+import config
 
 from tools import logger
 from mps_database.mps_config import MPSConfig, models
@@ -13,13 +13,12 @@ class HistorySession():
         self.dev = dev
         self.history_conn = None
         self.conf_conn = None
-        self.logger = logger.Logger(stdout=True)
+        self.logger = logger.Logger(stdout=True, dev=dev)
 
         if self.dev:
-            self.default_dbs = {"runtime": "/u1/lcls/physics/mps_manager", "config":"/afs/slac/g/lcls/physics/mps_configuration/current", "history": "/u/cd/lking/mps/mps_history"}
-            #self.default_dbs = {"runtime": "/u1/lcls/physics/mps_manager", "config":"$PHYSICS_TOP/mps_configuration/current", "history": "/u1/lcls/physics/mps_history"}
+            self.default_dbs = config.db_info["lcls-dev3"]
         else:
-            self.default_dbs = {"runtime": None, "config": None, "history":None}
+            self.default_dbs = config.db_info["test"]
         print("Dev is:", dev)
         print(self.default_dbs)
 
@@ -203,9 +202,9 @@ class HistorySession():
         """
         Creates a interactable connection to the history database
         """
-        db_file = 'mps_gun_history.db'
+        db_file = self.default_dbs["file_names"]["history"]
         try:
-            self.history_conn = MPSConfig(db_name="history", db_file=db_file, file_path=self.default_dbs["history"])
+            self.history_conn = MPSConfig(db_name="history", db_file=db_file, file_path=self.default_dbs["file_paths"]["history"])
         except:
             self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))
         return
@@ -216,9 +215,9 @@ class HistorySession():
         """
         # gun, runtime dbs hardcoded for now
         #TODO: add cli args later
-        db_file = 'mps_config-2021-09-20-a.db'
+        db_file = self.default_dbs["file_names"]["config"]
         try:
-            self.conf_conn = MPSConfig(db_name="config", db_file=db_file, file_path=self.default_dbs["config"])
+            self.conf_conn = MPSConfig(db_name="config", db_file=db_file, file_path=self.default_dbs["file_paths"]["config"])
         except:
             self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))
         return

@@ -2,6 +2,7 @@ from io import DEFAULT_BUFFER_SIZE
 import sqlalchemy
 from mps_database import mps_config, models
 
+import config
 from tools import HistorySession
 from models import analog_history, bypass_history, input_history, fault_history, mitigation_history
 from mps_database.models import Base
@@ -18,27 +19,26 @@ def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
-    dev = True
+    dev = False
     restart = True
 
     if dev:
-        #sample file path for testing on lcls-dev3
-        db_path = "/u/cd/lking/mps/mps_history"
-        #file_path = "/u1/lcls/physics/mps_history"
+        env = config.db_info["lcls-dev3"]
         host = "lcls-dev3"
     else:
-        db_path = None
+        env = config.db_info["test"]
         host = '127.0.0.1'
+    db_path = env["file_paths"]["history"]
 
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__, mitigation_history.MitigationHistory.__table__]
         #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
-        delete_history_db(tables, db_path=db_path)
-        create_history_tables(tables, db_path=db_path)
-    create_socket(host, dev)
+        delete_history_db(tables, env, db_path=db_path)
+        create_history_tables(tables, env, db_path=db_path)
+    create_socket(host, env)
     return
 
-def create_socket(host, dev):
+def create_socket(host, env):
     """
     Acts as a client to connect to HistoryServer backend. 
 
@@ -50,26 +50,20 @@ def create_socket(host, dev):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((host, port))
         # TODO: remove test data from this function
-        for data in generate_test_data(dev):
+        for data in generate_test_data(env):
             s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
         for data in create_bad_data():
             s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
 
     return
 
-def generate_test_data(dev):
+def generate_test_data(env):
     """
     Generates a suite of realistic test data for entering into the history db.
 
     Type number 3 is skipped because it is defined as "BypassValueType" in the central node ioc, and does not appear to be relevant
     """
-    if dev:
-        DEV_CONFIG_PATH = "/afs/slac/g/lcls/physics/mps_configuration/current"
-        file_path = DEV_CONFIG_PATH
-    else:
-        file_path = None
-
-    conf_conn = MPSConfig(db_name="config", db_file='mps_config-2021-09-20-a.db', file_path=file_path)
+    conf_conn = MPSConfig(db_name="config", db_file=env["file_names"]["config"], file_path=env["file_paths"]["config"])
     ad_select = select(models.AnalogDevice.id)
     ad_result = conf_conn.session.execute(ad_select)
     result = [r[0] for r in ad_result]
@@ -104,19 +98,19 @@ def create_bad_data():
     test_data = [fault, analog_bypass, digital_bypass, mitigation, device_input, analog, random_data]
     return test_data
 
-def create_history_tables(tables, db_path):
+def create_history_tables(tables, env, db_path):
     """
     Creates all tables to be used in the history database.
     Should not be called regularly.
     """
     try:
-        history_engine = MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
+        history_engine = MPSConfig(db_file=env["file_names"]["history"], db_name="history", file_path=db_path).last_engine
         Base.metadata.create_all(history_engine, tables=tables)
     except:
          print("ERROR: Unable to create tables in mps_gun_history.db")
     return
 
-def delete_history_db(tables, db_path):
+def delete_history_db(tables, env, db_path):
     """
     Deletes all data in tables in the history database. 
     Note: Does not remove empty table definitions from db.
@@ -124,7 +118,7 @@ def delete_history_db(tables, db_path):
     #Add function to delete all tables/rows
     try:
         meta = models.Base.metadata
-        meta.bind = MPSConfig(db_file="mps_gun_history.db", db_name="history", file_path=db_path).last_engine
+        meta.bind = MPSConfig(db_file=env["file_names"]["history"], db_name="history", file_path=db_path).last_engine
         meta.drop_all(tables=tables)
     except exc.OperationalError as e:
         print("Database does not exist, cannot delete tables")
