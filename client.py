@@ -19,7 +19,7 @@ def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
-    dev = False
+    dev = True
     restart = True
 
     if dev:

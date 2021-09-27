@@ -7,7 +7,7 @@ db_info  = {
         },
         "file_names":{
             "config":"mps_config-2021-09-20-a.db",
-            "history":None,
+            "history":"mps_gun_history.db",
             "runtime":None
         },
         "logger":{
