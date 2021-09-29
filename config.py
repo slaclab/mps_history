@@ -1,12 +1,13 @@
 db_info  = {
     "lcls-dev3":{
         "file_paths":{
-            "config":"/afs/slac/g/lcls/physics/mps_configuration/current",
+            #"config":"/afs/slac/g/lcls/physics/mps_configuration/current",
+            "config":"/u/cd/lking/mps/mps_history",
             "history":"/u/cd/lking/mps/mps_history",
             "runtime":"/u1/lcls/physics/mps_manager"
         },
         "file_names":{
-            "config":"mps_config-2021-09-20-a.db",
+            "config":"mps_config_imported.db",
             "history":"mps_gun_history.db",
             "runtime":None
         },
