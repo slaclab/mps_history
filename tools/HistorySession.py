@@ -50,6 +50,8 @@ class HistorySession():
             else:
                 device_state = None
             fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
+            if not fault:
+                raise
         except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
             return
@@ -102,6 +104,8 @@ class HistorySession():
                 analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==message.id).first()
                 channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
                 bypass_insert = bypass_history.BypassHistory.__table__.insert().values(bypass_id=channel.name, new_state=new_name, old_state=old_name, integrator=message.aux)
+            if not channel:
+                raise
         except:
             self.logger.log("SESSION ERROR: Add Bypass ", message.to_string())
             return        
@@ -118,6 +122,8 @@ class HistorySession():
             device_input = self.conf_conn.session.query(models.DeviceInput).filter(models.DeviceInput.id==message.id).first()
             channel = self.conf_conn.session.query(models.DigitalChannel).filter(models.DigitalChannel.id==device_input.channel_id).first()
             device = self.conf_conn.session.query(models.DigitalDevice).filter(models.DigitalDevice.id==device_input.digital_device_id).first()
+            if None in [device_input, device, channel]:
+                raise
         except:
             self.logger.log("SESSION ERROR: Add Device Input ", message.to_string())
             return

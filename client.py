@@ -33,7 +33,7 @@ def main():
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__, mitigation_history.MitigationHistory.__table__]
         #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
-        delete_history_db(tables, env, db_path=db_path)
+        #delete_history_db(tables, env, db_path=db_path)
         create_history_tables(tables, env, db_path=db_path)
     create_socket(host, env)
     return
@@ -70,8 +70,13 @@ def generate_test_data(env):
 
 
     #type, fault.id, old_val, new_val, DeviceState.id(opt)
+    """
+    Orig faults
     fault = [1, random.randint(1,2144), random.randint(0,1), random.randint(0,1), 0]
     fault_aux = [1, random.randint(1,2144), random.randint(0,1), random.randint(0,1), random.randint(1, 79)]
+    """
+    fault = [1, random.randint(1,3), random.randint(0,1), random.randint(0,1), 0]
+    fault_aux = [1, random.randint(1,3), random.randint(0,1), random.randint(0,1), random.randint(1, 79)]
     #BypassStateType, AnalogDevice.id, oldValue, newValue, 0-31
     analog_bypass = [2, random.choice(result), random.randint(0,1), random.randint(0,1), random.randint(0, 31)]
     #BypassStateType, DeviceInput.id, oldValue, newValue, index(>31)
