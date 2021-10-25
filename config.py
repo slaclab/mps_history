@@ -17,8 +17,8 @@ db_info  = {
     },
     "test":{
         "file_paths":{
-            "config":None,
-            "history":None,
+            "config":"/Users/lking/Documents/Projects/mps_database/mps_database",
+            "history":"/Users/lking/Documents/Projects/mps_database/mps_database",
             "runtime":None
         },
         "file_names":{

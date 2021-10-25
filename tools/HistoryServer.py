@@ -9,7 +9,11 @@ class Message(Structure):
     """
     Class responsible for defining messages coming from the Central Node IOC
 
-    Fault ID is connected to only one device ID, can move backwords
+    type: 1-6 depending on the type of data to be processed
+    id: generally corresponds to device id, but changes depending on message type
+    old_value, new_value: the data's initial and new values
+    aux: auxillary data that may or may not be included, depending on type -  
+        Expected data specifics will be specified in the processing functions
     """
     _fields_ = [
         ("type", c_uint),
@@ -25,6 +29,9 @@ class Message(Structure):
 class HistoryServer:
     """
     Most of this class has been taken from the depreciated EicHistory.py server. 
+
+    Establishes a socket responsible for receiving connections/data from the central node, 
+    and sending them off for processing. 
     """
     def __init__(self, host, port, dev):
         self.host = host
@@ -49,6 +56,9 @@ class HistoryServer:
         
 
     def listen_socket(self):
+        """
+        Endless function that waits for data to be sent over the socket
+        """
         while True:
             self.receive_update()
 

@@ -1,4 +1,4 @@
-import config
+import config, traceback, pprint
 
 from tools import logger
 from mps_database.mps_config import MPSConfig, models
@@ -29,7 +29,10 @@ class HistorySession():
 
     def execute_commit(self, to_execute):
         """
-        Runs the
+        Executes a supplied sql statement in the history database
+
+        Params:
+            to_exectue: SQL query to be run through the sqlalchemy history db session/connection
         """
         self.history_conn.session.execute(to_execute)
         self.history_conn.session.commit()
@@ -40,8 +43,10 @@ class HistorySession():
     def add_fault(self, message):
         """
         Adds a single fault to the fault_history table in the history database
-
         Adds in the fault description, "inactive"/"active" for the state changes, and the device state name
+
+        Params:
+            message: [type(of message), id, oldvalue, newvalue, aux(device_state)]
         """
         try:        
             # Set the optional auxillary data and get the official fault id
@@ -68,26 +73,71 @@ class HistorySession():
     def add_analog(self, message):
         """
         Adds an analog device update into the history database
-
         Adds in the device channel name, and hex values of the new and old state changes
+        
+        Params:
+            message: [type(of message), id, oldvalue, newvalue, aux(allowed_class)]
         """
+        #TODO: add device name, beam class, destination
         try:
-            device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==message.id).first()
-            channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==device.channel_id).first()
+            analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==message.id).first()
+            channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
+            print(analog_device, analog_device.id)
+            device = self.conf_conn.session.query(models.Device).filter(models.Device.id==analog_device.id).first()
+
+            print("dev", device)
+            print("device id", device.id)
+
+            mitigation = 'x'
+            """
+            TODO: Mitigation currently empty, no data to query off of
+            mitigation = self.conf_conn.session.query(models.MitigationDevice).filter(models.MitigationDevice.id==device.id).first()
+            print(mitigation)
+            """
+            
+            analog_data = self.conf_conn.session.query(
+                    models.FaultInput, models.AllowedClass, models.BeamClass
+               ).join(models.Fault,
+                    models.FaultInput.fault_id == models.Fault.id,
+                ).join(models.FaultState,
+                    models.Fault.id == models.FaultState.fault_id,                
+                ).join(models.AllowedClass,
+                    models.FaultState.id == models.AllowedClass.fault_state_id,
+                ).join(models.BeamClass,
+                    models.AllowedClass.beam_class_id == models.BeamClass.id,                                  
+                ).filter(
+                    models.FaultInput.device_id == device.id,
+                )
+            
+            print("___________________________________________")
+            pprint.pprint(str(analog_data))
+
+            results = analog_data.first()
+            print("device id ", results[0].device_id, "\nallowed class ", results[1].id, "\nbeam class", results[2].name)
+            #allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.beam_destination_id==beam_dest.id)
+            #beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
+            
+            if None in [device, channel, analog_data]:
+                print([device, channel, analog_data])
+                raise            
             # This will fail if the values are strings, not ints. TODO: see how it sends info
             old_value, new_value = hex(message.old_value), hex(message.new_value)
         except:
             self.logger.log("SESSION ERROR: Add Analog ", message.to_string())
+            print(traceback.format_exc())
             return
-        analog_insert = analog_history.AnalogHistory.__table__.insert().values(channel=channel.name, old_state=old_value, new_state=new_value)
+        #TODO: add device name in to database
+        analog_insert = analog_history.AnalogHistory.__table__.insert().values(channel=channel.name, destination="NONE", beam_class="NONE", device=device.name, old_state=old_value, new_state=new_value)
         self.execute_commit(analog_insert)
         return
 
     def add_bypass(self, message):
         """
         Adds an analog or digital device bypass into the history database.
-
         Adds in the device channel name, "active"/"expired" for the state change, and if analog, the integrator auxillary data
+        
+        Params:
+            message: [type(of message), id, oldvalue, newvalue, aux(digital vs analog)]        
         """
         # Determine active/expiration status
         old_name, new_name = "active", "active"
@@ -115,17 +165,46 @@ class HistorySession():
     def add_input(self, message):
         """
         Adds a device input into the history database
-
         Adds in digital channel name, the digital device name, and the names of the new and old digital channels based on their 0/1 values 
+        
+        Params:
+            message: [type(of message), id, oldvalue, newvalue, aux(allowed_class)]        
         """
+        #TODO: add beam class, destination
         try:
             device_input = self.conf_conn.session.query(models.DeviceInput).filter(models.DeviceInput.id==message.id).first()
-            channel = self.conf_conn.session.query(models.DigitalChannel).filter(models.DigitalChannel.id==device_input.channel_id).first()
-            device = self.conf_conn.session.query(models.DigitalDevice).filter(models.DigitalDevice.id==device_input.digital_device_id).first()
+            channel = self.conf_conn.session.query(models.DigitalChannel).filter(models.DigitalChannel.id==device_input.channel_id).first()   
+            digital_device = self.conf_conn.session.query(models.DigitalDevice).filter(models.DigitalDevice.id==device_input.digital_device_id).first()
+            
+            device = self.conf_conn.session.query(models.Device).filter(models.Device.id==digital_device.id).first()
+            
+            input_data = self.conf_conn.session.query(
+                    models.FaultInput, models.AllowedClass, models.BeamClass
+               ).join(models.Fault,
+                    models.FaultInput.fault_id == models.Fault.id,
+                ).join(models.FaultState,
+                    models.Fault.id == models.FaultState.fault_id,                
+                ).join(models.AllowedClass,
+                    models.FaultState.id == models.AllowedClass.fault_state_id,
+                ).join(models.BeamClass,
+                    models.AllowedClass.beam_class_id == models.BeamClass.id,                                  
+                ).filter(
+                    models.FaultInput.device_id == device.id,
+                )
+            print("___________________________________________ input")
+            pprint.pprint(str(input_data))
+            results = input_data.all()
+            for result in results:
+                pprint.pprint([res.id for res in result])
+            print("___________________________________________ end input")
+
+            
             if None in [device_input, device, channel]:
+                print([device_input, device, channel])
                 raise
         except:
             self.logger.log("SESSION ERROR: Add Device Input ", message.to_string())
+            print(traceback.format_exc())
             return
         old_name = channel.z_name
         new_name = channel.z_name
@@ -134,15 +213,17 @@ class HistorySession():
         if (message.new_value > 0):
             new_name = channel.o_name
 
-        input_insert = input_history.InputHistory.__table__.insert().values(new_state=new_name, old_state=old_name, channel=channel.name, device=device.name)
+        input_insert = input_history.InputHistory.__table__.insert().values(new_state=new_name, old_state=old_name, channel=channel.name, device=digital_device.name, beam_class="NONE", destination="None")
         self.execute_commit(input_insert)
         return
 
     def add_mitigation(self, message):
         """
         Adds a mitigation entry to the history database.
-
         Adds in the name of the beam destination, and the names of the new and old beam class states
+        
+        Params:
+            message: [type(of message), id, oldvalue, newvalue, aux(0)]        
         """
         try:
             device = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==message.id).first()
@@ -156,43 +237,36 @@ class HistorySession():
 
         mitigation_insert = mitigation_history.MitigationHistory.__table__.insert().values(device=device.name, new_state=bc2.name, old_state=bc1.name)
         self.execute_commit(mitigation_insert)
-        return
-
-    def add_faults(self, fault_ids):
-        """
-        Adds a list of faults to the fault_history table in the history database
-        """
-        print("Adding faults ", fault_ids)
-        faults_info = []
-        for fid in fault_ids:
-            faults_info.append({'fault_id': fid})
-        #TODO needs engine to run multi insert?
-        self.history_conn.last_engine.execute(fault_history.FaultHistory.__table__.insert(), faults_info)
-        self.history_conn.session.commit()
-        return      
+        return     
 
     def get_last_faults(self, num_faults=10):
         """
         Gets the ten most recent fault entries from the history database
+
+        Params:
+            num_faults: (int) Number of faults to pull from the database, starting with the most recent. Default value of 10.
         """
         stmt = select(fault_history.FaultHistory.id, fault_history.FaultHistory.fault_id).order_by(fault_history.FaultHistory.timestamp.desc()).limit(num_faults)
         results = self.history_conn.session.execute(stmt)
         return results
 
-    def get_all_faults_by_id(self, fid):
+    def get_all_faults_by_id(self, fault_id):
         """
-        Gets all fault entries in the history database based from their fid
+        Gets all fault entries in the history database based from their fault_id
+
+        Params:
+            fault_id
         """
-        print("Selecting entries ", fid)
-        stmt = select(fault_history.FaultHistory.timestamp).where(fault_history.FaultHistory.fault_id == fid)
+        print("Selecting entries ", fault_id)
+        stmt = select(fault_history.FaultHistory.timestamp).where(fault_history.FaultHistory.fault_id == fault_id)
         result = self.history_conn.session.execute(stmt)
         return result.fetchall()
 
-    def get_entry_by_id(self, fid):
+    def get_entry_by_id(self, fault_id):
         """
         Gets a single fault entry from history database based on its unique id
         """
-        stmt = select(fault_history.FaultHistory.timestamp).where(fault_history.FaultHistory.id == fid)
+        stmt = select(fault_history.FaultHistory.timestamp).where(fault_history.FaultHistory.id == fault_id)
         result = self.history_conn.session.execute(stmt)
         return result.fetchone()
 

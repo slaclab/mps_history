@@ -19,7 +19,7 @@ def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
-    dev = True
+    dev = False
     restart = True
 
     if dev:
@@ -29,11 +29,12 @@ def main():
         env = config.db_info["test"]
         host = '127.0.0.1'
     db_path = env["file_paths"]["history"]
+    print("db_path", db_path)
 
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__, mitigation_history.MitigationHistory.__table__]
         #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
-        #delete_history_db(tables, env, db_path=db_path)
+        delete_history_db(tables, env, db_path=db_path)
         create_history_tables(tables, env, db_path=db_path)
     create_socket(host, env)
     return
@@ -109,6 +110,7 @@ def create_history_tables(tables, env, db_path):
     Should not be called regularly.
     """
     try:
+        print(env["file_names"]["history"], db_path)
         history_engine = MPSConfig(db_file=env["file_names"]["history"], db_name="history", file_path=db_path).last_engine
         Base.metadata.create_all(history_engine, tables=tables)
     except:
