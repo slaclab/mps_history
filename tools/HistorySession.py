@@ -82,19 +82,11 @@ class HistorySession():
         try:
             analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==message.id).first()
             channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
-            print(analog_device, analog_device.id)
             device = self.conf_conn.session.query(models.Device).filter(models.Device.id==analog_device.id).first()
 
-            print("dev", device)
             print("device id", device.id)
 
-            mitigation = 'x'
-            """
-            TODO: Mitigation currently empty, no data to query off of
-            mitigation = self.conf_conn.session.query(models.MitigationDevice).filter(models.MitigationDevice.id==device.id).first()
-            print(mitigation)
-            """
-            
+            '''
             analog_data = self.conf_conn.session.query(
                     models.FaultInput, models.AllowedClass, models.BeamClass
                ).join(models.Fault,
@@ -111,14 +103,13 @@ class HistorySession():
             
             print("___________________________________________")
             pprint.pprint(str(analog_data))
+            '''
+            allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message[-1])
+            beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
+            beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id)
 
-            results = analog_data.first()
-            print("device id ", results[0].device_id, "\nallowed class ", results[1].id, "\nbeam class", results[2].name)
-            #allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.beam_destination_id==beam_dest.id)
-            #beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
-            
-            if None in [device, channel, analog_data]:
-                print([device, channel, analog_data])
+            if None in [device, channel, beam_class, beam_dest]:
+                print([device, channel, beam_class, beam_dest])
                 raise            
             # This will fail if the values are strings, not ints. TODO: see how it sends info
             old_value, new_value = hex(message.old_value), hex(message.new_value)
@@ -127,7 +118,7 @@ class HistorySession():
             print(traceback.format_exc())
             return
         #TODO: add device name in to database
-        analog_insert = analog_history.AnalogHistory.__table__.insert().values(channel=channel.name, destination="NONE", beam_class="NONE", device=device.name, old_state=old_value, new_state=new_value)
+        analog_insert = analog_history.AnalogHistory.__table__.insert().values(channel=channel.name, destination=beam_dest.name, beam_class=beam_class.name, device=device.name, old_state=old_value, new_state=new_value)
         self.execute_commit(analog_insert)
         return
 
@@ -178,6 +169,11 @@ class HistorySession():
             
             device = self.conf_conn.session.query(models.Device).filter(models.Device.id==digital_device.id).first()
             
+            allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message[-1])
+            beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
+            beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id)
+        
+            '''
             input_data = self.conf_conn.session.query(
                     models.FaultInput, models.AllowedClass, models.BeamClass
                ).join(models.Fault,
@@ -191,16 +187,17 @@ class HistorySession():
                 ).filter(
                     models.FaultInput.device_id == device.id,
                 )
+            
             print("___________________________________________ input")
             pprint.pprint(str(input_data))
             results = input_data.all()
             for result in results:
                 pprint.pprint([res.id for res in result])
             print("___________________________________________ end input")
-
+            '''
             
-            if None in [device_input, device, channel]:
-                print([device_input, device, channel])
+            if None in [device_input, device, channel, beam_class, beam_dest]:
+                print([device_input, device, channel, beam_class, beam_dest])
                 raise
         except:
             self.logger.log("SESSION ERROR: Add Device Input ", message.to_string())
@@ -213,7 +210,7 @@ class HistorySession():
         if (message.new_value > 0):
             new_name = channel.o_name
 
-        input_insert = input_history.InputHistory.__table__.insert().values(new_state=new_name, old_state=old_name, channel=channel.name, device=digital_device.name, beam_class="NONE", destination="None")
+        input_insert = input_history.InputHistory.__table__.insert().values(new_state=new_name, old_state=old_name, channel=channel.name, device=digital_device.name, beam_class=beam_class.name, destination=beam_dest.name)
         self.execute_commit(input_insert)
         return
 
@@ -293,7 +290,6 @@ class HistorySession():
         """
         Creates a interactable connection to the configuration database
         """
-        # gun, runtime dbs hardcoded for now
         #TODO: add cli args later
         db_file = self.default_dbs["file_names"]["config"]
         try:

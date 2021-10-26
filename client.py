@@ -19,7 +19,9 @@ def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
+    #dev should be changed to True if being run on lcls-dev3
     dev = False
+    #restart is True if you want tables to be wiped and recreated 
     restart = True
 
     if dev:
