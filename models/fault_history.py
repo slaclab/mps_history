@@ -17,8 +17,12 @@ class FaultHistory(Base):
   id = Column(Integer, primary_key=True)
   timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
   fault_id = Column(Integer, nullable=False)
-  # new/old states should be active/inactive
+  # new/old states should be list of thresholds
   new_state = Column(String, nullable=False)
   old_state = Column(String, nullable=False)
-  # Device state is the optional auxillary data
-  device_state = Column(String, nullable=True)
+  beam_class = Column(String, nullable=False)
+  beam_dest = Column(String, nullable=False)
+
+
+
+#fault description, current beam destination, beam class

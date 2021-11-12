@@ -17,10 +17,7 @@ class InputHistory(Base):
    new_state: the state that was transitioned to in this fault event (either a 0 or 1)
    old_state: the state that was transitioned from in this fault event (either a 0 or 1)
    channel:
-   device:
-   beam_class:
-   destination:
-                 
+   device:       
   """
   __tablename__ = 'input_history'
   id = Column(Integer, primary_key=True)
@@ -30,6 +27,5 @@ class InputHistory(Base):
   old_state = Column(String, nullable=False)
   channel = Column(String, nullable=False) #DigitalChannel
   device = Column(String, nullable=False) #DigitalDevice
-  beam_class = Column(String, nullable=False)
-  destination = Column(String, nullable=False)
+
 
