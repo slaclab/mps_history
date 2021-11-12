@@ -58,6 +58,7 @@ class HistorySession():
                 allowed_class = "GOOD"
             fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
             if None in [fault, beam_dest, beam_class]:
+                print([fault, beam_dest, beam_class])
                 raise
         except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
