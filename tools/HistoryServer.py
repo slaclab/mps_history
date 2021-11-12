@@ -81,6 +81,7 @@ class HistoryServer:
         """
         if (message.type == 1): # FaultStateType 
             self.history_db.add_fault(message)
+	    print("Sending to Fault")
         elif (message.type == 2): # BypassStateType
             self.history_db.add_bypass(message)
         elif (message.type == 4): # MitigationType

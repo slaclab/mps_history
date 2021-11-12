@@ -4,7 +4,7 @@ from mps_database import mps_config, models
 
 import config
 from tools import HistorySession
-from models import analog_history, bypass_history, input_history, fault_history, mitigation_history
+from models import analog_history, bypass_history, input_history, fault_history
 from mps_database.models import Base
 
 from mps_database.mps_config import MPSConfig
@@ -20,7 +20,7 @@ def main():
     Main function responsible for calling whatever tools functions you need. 
     """
     #dev should be changed to True if being run on lcls-dev3
-    dev = False
+    dev = True
     #restart is True if you want tables to be wiped and recreated 
     restart = True
 
@@ -34,11 +34,11 @@ def main():
     print("db_path", db_path)
 
     if restart:
-        tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__, mitigation_history.MitigationHistory.__table__]
+        tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__]
         #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
         delete_history_db(tables, env, db_path=db_path)
         create_history_tables(tables, env, db_path=db_path)
-    create_socket(host, env)
+    #create_socket(host, env)
     return
 
 def create_socket(host, env):
