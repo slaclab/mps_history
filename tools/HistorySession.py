@@ -51,24 +51,31 @@ class HistorySession():
         try:        
             # Set the optional auxillary data and get the official fault id
             if message.aux > 0:
-                device_state = self.conf_conn.session.query(models.DeviceState).filter(models.DeviceState.id==message.aux).first().name
+                allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message.aux).first()
+                beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination._id).first()
+                beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
             else:
-                device_state = None
+                allowed_class = "GOOD"
             fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
-            if not fault:
+            if None in [fault, beam_dest, beam_class]:
                 raise
         except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
             return
         # Set the new state transition
-        if message.new_value == 1:
-            new_state, old_state = "inactive", "active"
-        else:
-            new_state, old_state = "active", "inactive"
+        old_state = self.determine_thresholds(message.old_value)
+        new_state = self.determine_thresholds(message.new_value)
 
         fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault.description, old_state=old_state, new_state=new_state, device_state=device_state)
         self.execute_commit(fault_insert)
         return
+
+    def determine_thresholds(self, bits):
+        thresholds = ''
+        for count, bit in enumerate(str(bin(bits)[::-1])):
+            if bit == "1":
+                thresholds += ("threshold " + str(count+1) + ",")
+        return thresholds[:-1]
 
     def add_analog(self, message):
         """
@@ -168,36 +175,9 @@ class HistorySession():
             digital_device = self.conf_conn.session.query(models.DigitalDevice).filter(models.DigitalDevice.id==device_input.digital_device_id).first()
             
             device = self.conf_conn.session.query(models.Device).filter(models.Device.id==digital_device.id).first()
-            
-            allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message[-1])
-            beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
-            beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id)
-        
-            '''
-            input_data = self.conf_conn.session.query(
-                    models.FaultInput, models.AllowedClass, models.BeamClass
-               ).join(models.Fault,
-                    models.FaultInput.fault_id == models.Fault.id,
-                ).join(models.FaultState,
-                    models.Fault.id == models.FaultState.fault_id,                
-                ).join(models.AllowedClass,
-                    models.FaultState.id == models.AllowedClass.fault_state_id,
-                ).join(models.BeamClass,
-                    models.AllowedClass.beam_class_id == models.BeamClass.id,                                  
-                ).filter(
-                    models.FaultInput.device_id == device.id,
-                )
-            
-            print("___________________________________________ input")
-            pprint.pprint(str(input_data))
-            results = input_data.all()
-            for result in results:
-                pprint.pprint([res.id for res in result])
-            print("___________________________________________ end input")
-            '''
-            
-            if None in [device_input, device, channel, beam_class, beam_dest]:
-                print([device_input, device, channel, beam_class, beam_dest])
+
+            if None in [device_input, device, channel]:
+                print([device_input, device, channel])
                 raise
         except:
             self.logger.log("SESSION ERROR: Add Device Input ", message.to_string())
@@ -210,7 +190,7 @@ class HistorySession():
         if (message.new_value > 0):
             new_name = channel.o_name
 
-        input_insert = input_history.InputHistory.__table__.insert().values(new_state=new_name, old_state=old_name, channel=channel.name, device=digital_device.name, beam_class=beam_class.name, destination=beam_dest.name)
+        input_insert = input_history.InputHistory.__table__.insert().values(new_state=new_name, old_state=old_name, channel=channel.name, device=digital_device.name)
         self.execute_commit(input_insert)
         return
 
