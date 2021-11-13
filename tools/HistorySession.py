@@ -53,23 +53,30 @@ class HistorySession():
             if message.aux > 0:
                 allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message.aux).first()
                 beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination._id).first()
-                beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
+                beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id).first()
             else:
                 allowed_class = "GOOD"
+            old_state = self.determine_device_from_fault(message.old_value).name
+            new_state = self.determine_device_from_fault(message.new_value).name
             fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
-            if None in [fault, beam_dest, beam_class]:
-                print([fault, beam_dest, beam_class])
+            if None in [beam_dest, beam_class, fault, old_state, new_state]:
+                print([beam_dest, beam_class, fault, old_state, new_state])
                 raise
         except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
             return
         # Set the new state transition
-        old_state = self.determine_thresholds(message.old_value)
-        new_state = self.determine_thresholds(message.new_value)
+        #old_state = self.determine_thresholds(message.old_value)
+        #new_state = self.determine_thresholds(message.new_value)
 
-        fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault.description, old_state=old_state, new_state=new_state, device_state=device_state)
+        fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault.id, fault_desc=fault.description, old_state=old_state, new_state=new_state, beam_class=beam_class, beam_destination=beam_dest)
         self.execute_commit(fault_insert)
         return
+
+    def determine_device_from_fault(self, value):
+        fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==value).first()
+        device_state = self.conf_conn.session.query(models.DeviceState).filter(models.DeviceState.id==fault_state.device_state_id).first()
+        return device_state
 
     def determine_thresholds(self, bits):
         thresholds = ''
@@ -84,34 +91,13 @@ class HistorySession():
         Adds in the device channel name, and hex values of the new and old state changes
         
         Params:
-            message: [type(of message), id, oldvalue, newvalue, aux(allowed_class)]
+            message: [type(of message), id, old_value, new_value, aux(allowed_class)]
         """
-        #TODO: add device name, beam class, destination
         try:
             analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==message.id).first()
             channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
             device = self.conf_conn.session.query(models.Device).filter(models.Device.id==analog_device.id).first()
 
-            print("device id", device.id)
-
-            '''
-            analog_data = self.conf_conn.session.query(
-                    models.FaultInput, models.AllowedClass, models.BeamClass
-               ).join(models.Fault,
-                    models.FaultInput.fault_id == models.Fault.id,
-                ).join(models.FaultState,
-                    models.Fault.id == models.FaultState.fault_id,                
-                ).join(models.AllowedClass,
-                    models.FaultState.id == models.AllowedClass.fault_state_id,
-                ).join(models.BeamClass,
-                    models.AllowedClass.beam_class_id == models.BeamClass.id,                                  
-                ).filter(
-                    models.FaultInput.device_id == device.id,
-                )
-            
-            print("___________________________________________")
-            pprint.pprint(str(analog_data))
-            '''
             allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message[-1])
             beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
             beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id)
