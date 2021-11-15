@@ -70,7 +70,7 @@ class HistorySession():
         #old_state = self.determine_thresholds(message.old_value)
         #new_state = self.determine_thresholds(message.new_value)
 
-        fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault.id, fault_desc=fault.description, old_state=old_state, new_state=new_state, beam_class=beam_class, beam_destination=beam_dest)
+        fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault.id, fault_desc=fault.description, old_state=old_state, new_state=new_state, beam_class=beam_class.name, beam_destination=beam_dest.name)
         self.execute_commit(fault_insert)
         return
 
