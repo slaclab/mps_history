@@ -17,8 +17,6 @@ class AnalogHistory(Base):
      in order to work with sqlite date/time functions: "YYYY-MM-DD HH:MM:SS.SSS"
    channel: The analog channel from the device id
    device: Device name receiving the input
-   beam_class: Beam Class derived from device id
-   destination: Beam destination derived from device id
    new_state: Hex value of data sent directly from the central node
    old_state: Hex value of data sent directly from the central node
 
@@ -28,8 +26,6 @@ class AnalogHistory(Base):
   timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
   channel = Column(Integer, nullable=False) # AnalogChannel from id(AnalogDevice)
   device = Column(String, nullable=False)
-  beam_class = Column(String, nullable=False)
-  destination = Column(String, nullable=False)
   # States are converted to hex?
   new_state = Column(Integer, nullable=False)
   old_state = Column(Integer, nullable=False)

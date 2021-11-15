@@ -48,39 +48,47 @@ class HistorySession():
         Params:
             message: [type(of message), id, oldvalue, newvalue, aux(device_state)]
         """
-        try:        
-            # Set the optional auxillary data and get the official fault id
+        try:      
+            # Determine the fault id and description
+            if message.id > 0:
+                fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
+                fault_info = {"fid":fault.id, "fdesc":fault.description}
+            else:
+                fault_info = {"fid":"None", "fdesc":"None"}
+
+            #Determine the new and old fault state names
+            old_state = self.determine_device_from_fault(message.old_value)
+            new_state = self.determine_device_from_fault(message.new_value)
+
+            # Using the allowed class(aux) determine the beam class and destination
             if message.aux > 0:
                 allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message.aux).first()
-                print(allowed_class)
-                beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id).first()
-                print(beam_dest)
-                beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id).first()
-                print(beam_class)
+                beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id).first().name
+                beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id).first().name
             else:
                 allowed_class = "GOOD"
-            old_state = self.determine_device_from_fault(message.old_value).name
-            new_state = self.determine_device_from_fault(message.new_value).name
-            fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
-            if None in [beam_dest, beam_class, fault, old_state, new_state]:
+                beam_dest = "ALL"
+                beam_class = "FULL"
+            if None in [beam_dest, beam_class, old_state, new_state]:
                 print([beam_dest, beam_class, fault, old_state, new_state])
                 raise
         except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
             print(traceback.format_exc())
             return
-        # Set the new state transition
-        #old_state = self.determine_thresholds(message.old_value)
-        #new_state = self.determine_thresholds(message.new_value)
-
-        fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault.id, fault_desc=fault.description, old_state=old_state, new_state=new_state, beam_class=beam_class.name, beam_destination=beam_dest.name)
+        fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault_info["fid"], fault_desc=fault_info["fdesc"], old_state=old_state, new_state=new_state, beam_class=beam_class, beam_destination=beam_dest)
         self.execute_commit(fault_insert)
         return
 
-    def determine_device_from_fault(self, value):
-        fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==value).first()
+    def determine_device_from_fault(self, fstate_id):
+        """
+        Returns the device state based off of the fault state id
+        """
+        if fstate_id == 0:
+            return "None"
+        fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==fstate_id).first()
         device_state = self.conf_conn.session.query(models.DeviceState).filter(models.DeviceState.id==fault_state.device_state_id).first()
-        return device_state
+        return device_state.name
 
     def determine_thresholds(self, bits):
         thresholds = ''
@@ -95,19 +103,15 @@ class HistorySession():
         Adds in the device channel name, and hex values of the new and old state changes
         
         Params:
-            message: [type(of message), id, old_value, new_value, aux(allowed_class)]
+            message: [type(of message), id, old_value, new_value, aux]
         """
         try:
             analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==message.id).first()
             channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
             device = self.conf_conn.session.query(models.Device).filter(models.Device.id==analog_device.id).first()
 
-            allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message.aux).first()
-            beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id).first()
-            beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id).first()
-
-            if None in [device, channel, beam_class, beam_dest]:
-                print([device, channel, beam_class, beam_dest])
+            if None in [device, channel]:
+                print([device, channel])
                 raise            
             # This will fail if the values are strings, not ints. TODO: see how it sends info
             old_value, new_value = hex(message.old_value), hex(message.new_value)
@@ -116,7 +120,7 @@ class HistorySession():
             print(traceback.format_exc())
             return
         #TODO: add device name in to database
-        analog_insert = analog_history.AnalogHistory.__table__.insert().values(channel=channel.name, destination=beam_dest.name, beam_class=beam_class.name, device=device.name, old_state=old_value, new_state=new_value)
+        analog_insert = analog_history.AnalogHistory.__table__.insert().values(channel=channel.name, device=device.name, old_state=old_value, new_state=new_value)
         self.execute_commit(analog_insert)
         return
 
@@ -183,29 +187,7 @@ class HistorySession():
 
         input_insert = input_history.InputHistory.__table__.insert().values(new_state=new_name, old_state=old_name, channel=channel.name, device=digital_device.name)
         self.execute_commit(input_insert)
-        return
-
-    def add_mitigation(self, message):
-        """
-        Adds a mitigation entry to the history database.
-        Adds in the name of the beam destination, and the names of the new and old beam class states
-        
-        Params:
-            message: [type(of message), id, oldvalue, newvalue, aux(0)]        
-        """
-        try:
-            device = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==message.id).first()
-            bc1 = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==message.old_value).first()
-            bc2 = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==message.new_value).first()
-            if None in [device, bc1, bc2]:
-                raise Exception
-        except:
-            self.logger.log("SESSION ERROR: Add Mitigation ", message.to_string())
-            return
-
-        mitigation_insert = mitigation_history.MitigationHistory.__table__.insert().values(device=device.name, new_state=bc2.name, old_state=bc1.name)
-        self.execute_commit(mitigation_insert)
-        return     
+        return 
 
     def get_last_faults(self, num_faults=10):
         """
