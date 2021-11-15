@@ -38,7 +38,7 @@ def main():
         #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
         delete_history_db(tables, env, db_path=db_path)
         create_history_tables(tables, env, db_path=db_path)
-    #create_socket(host, env)
+    create_socket(host, env)
     return
 
 def create_socket(host, env):
