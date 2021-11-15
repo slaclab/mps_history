@@ -64,6 +64,7 @@ class HistorySession():
                 raise
         except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
+            print(traceback.format_exc())
             return
         # Set the new state transition
         #old_state = self.determine_thresholds(message.old_value)
@@ -98,7 +99,7 @@ class HistorySession():
             channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
             device = self.conf_conn.session.query(models.Device).filter(models.Device.id==analog_device.id).first()
 
-            allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message[-1])
+            allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message.aux)
             beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id)
             beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id)
 
