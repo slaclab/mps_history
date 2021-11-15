@@ -144,6 +144,7 @@ class HistorySession():
                 raise
         except:
             self.logger.log("SESSION ERROR: Add Bypass ", message.to_string())
+            print(traceback.format_exc())
             return        
         self.execute_commit(bypass_insert)
         return

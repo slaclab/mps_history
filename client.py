@@ -55,8 +55,8 @@ def create_socket(host, env):
         # TODO: remove test data from this function
         for data in generate_test_data(env):
             s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        for data in create_bad_data():
-            s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        #for data in create_bad_data():
+            #s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
 
     return
 
