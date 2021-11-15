@@ -77,9 +77,10 @@ def generate_test_data(env):
     Orig faults
     fault = [1, random.randint(1,2144), random.randint(0,1), random.randint(0,1), 0]
     fault_aux = [1, random.randint(1,2144), random.randint(0,1), random.randint(0,1), random.randint(1, 79)]
-    """
     fault = [1, random.randint(1,3), random.randint(0,1), random.randint(0,1), 0]
-    fault_aux = [1, random.randint(1,3), random.randint(0,1), random.randint(0,1), random.randint(1, 79)]
+    """
+    #FaultType, Fault.id, FaultState.id, FaultState.id, AllowedClass.id
+    fault_all = [1, random.randint(1,3), random.randint(1,20), random.randint(1,20), random.randint(1, 20)]
     #BypassStateType, AnalogDevice.id, oldValue, newValue, 0-31
     analog_bypass = [2, random.choice(result), random.randint(0,1), random.randint(0,1), random.randint(0, 31)]
     #BypassStateType, DeviceInput.id, oldValue, newValue, index(>31)
@@ -91,7 +92,7 @@ def generate_test_data(env):
     device_input = [5, random.randint(1,1011), random.randint(0,1), random.randint(0,1), 0]
     #AnalogDeviceType, AnalogDevice.id, oldValue, newValue, 0
     analog = [6, random.choice(result), 0, 0, 0]
-    test_data = [fault, fault_aux, analog_bypass, digital_bypass, device_input, analog]
+    test_data = [fault_all, analog_bypass, digital_bypass, device_input, analog]
     pprint.pprint(test_data)
     return test_data
 

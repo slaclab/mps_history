@@ -155,7 +155,6 @@ class HistorySession():
         Params:
             message: [type(of message), id, oldvalue, newvalue, aux(allowed_class)]        
         """
-        #TODO: add beam class, destination
         try:
             device_input = self.conf_conn.session.query(models.DeviceInput).filter(models.DeviceInput.id==message.id).first()
             channel = self.conf_conn.session.query(models.DigitalChannel).filter(models.DigitalChannel.id==device_input.channel_id).first()   
