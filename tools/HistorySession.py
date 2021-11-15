@@ -52,7 +52,7 @@ class HistorySession():
             # Set the optional auxillary data and get the official fault id
             if message.aux > 0:
                 allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message.aux).first()
-                beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination.id).first()
+                beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id).first()
                 beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id).first()
             else:
                 allowed_class = "GOOD"
