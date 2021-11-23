@@ -1,5 +1,5 @@
 import argparse
-from tools import HistoryServer
+from mps_history.tools import HistoryServer
 
 def main():
     parser = argparse.ArgumentParser(description='Receive MPS history messages')

@@ -3,8 +3,8 @@ import sqlalchemy
 from mps_database import mps_config, models
 
 import config
-from tools import HistorySession
-from models import analog_history, bypass_history, input_history, fault_history
+from mps_history.tools import HistorySession
+from mps_history.models import analog_history, bypass_history, input_history, fault_history
 from mps_database.models import Base
 
 from mps_database.mps_config import MPSConfig
@@ -20,9 +20,9 @@ def main():
     Main function responsible for calling whatever tools functions you need. 
     """
     #dev should be changed to True if being run on lcls-dev3
-    dev = True
+    dev = False
     #restart is True if you want tables to be wiped and recreated 
-    restart = True
+    restart = False
 
     if dev:
         env = config.db_info["lcls-dev3"]

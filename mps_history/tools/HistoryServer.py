@@ -2,7 +2,7 @@ import socket, sys, argparse, datetime, errno
 from ctypes import *
 
 from mps_database.mps_config import MPSConfig, models
-from tools import HistorySession, logger
+from mps_history.tools import HistorySession, logger
 
 
 class Message(Structure):

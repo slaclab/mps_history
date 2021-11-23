@@ -1,10 +1,10 @@
 import config, traceback, pprint
 
-from tools import logger
+from mps_history.tools import logger
 from mps_database.mps_config import MPSConfig, models
 
 
-from models import fault_history, analog_history, bypass_history, input_history
+from mps_history.models import fault_history, analog_history, bypass_history, input_history
 from sqlalchemy import insert, select
 
 
