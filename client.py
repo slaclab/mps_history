@@ -47,12 +47,17 @@ def create_socket(host, env):
 
     Creates a socket and sends over generated test insert data.
     """
-
     port = 3356
     
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((host, port))
         # TODO: remove test data from this function
+        for data in generate_test_data(env):
+            s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        for data in generate_test_data(env):
+            s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        for data in generate_test_data(env):
+            s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
         for data in generate_test_data(env):
             s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
         #for data in create_bad_data():
@@ -75,6 +80,11 @@ def generate_test_data(env):
     ac_result = conf_conn.session.execute(ac_select)
     ac = [r[0] for r in ac_result]
 
+    f_select = select(models.Fault.id)
+    f_res = conf_conn.session.execute(f_select)
+    #print(f_res.__dict__)
+    f = [r[0] for r in f_res]
+
     #type, fault.id, old_val, new_val, DeviceState.id(opt)
     """
     Orig faults
@@ -83,7 +93,7 @@ def generate_test_data(env):
     fault = [1, random.randint(1,3), random.randint(0,1), random.randint(0,1), 0]
     """
     #FaultType, Fault.id, FaultState.id, FaultState.id, AllowedClass.id
-    fault_all = [1, random.randint(1,3), random.randint(1,20), random.randint(1,20), random.choice(ac)]
+    fault_all = [1, random.choice(f), random.randint(1,20), random.randint(1,20), random.choice(ac)]
     fault_zero = [1, 0, 0, random.randint(1,20), random.choice(ac)]
     fault_zero_2 = [1, 0, random.randint(1,20), 0, 0]
 
@@ -99,7 +109,8 @@ def generate_test_data(env):
     #AnalogDeviceType, AnalogDevice.id, oldValue, newValue, 0
     analog = [6, random.choice(result), 0, 0, 0]
 
-    test_data = [fault_all, fault_zero, fault_zero_2, analog_bypass, digital_bypass, device_input, analog]
+    test_data = [fault_all, analog_bypass, digital_bypass, device_input, analog]
+    #test_data = [fault_all, fault_zero, fault_zero_2, analog_bypass, digital_bypass, device_input, analog]
     pprint.pprint(test_data)
     return test_data
 
