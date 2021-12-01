@@ -46,15 +46,20 @@ class HistorySession():
         Adds in the fault description, "inactive"/"active" for the state changes, and the device state name
 
         Params:
-            message: [type(of message), id, oldvalue, newvalue, aux(device_state)]
+            message: [type(of message), id, old_value, new_value, aux(allowed_class)]
         """
         try:      
             # Determine the fault id and description
-            if message.id > 0:
+            if message.new_value == 0:
+                fault_info = {"fid":message.id, "fdesc":"FAULT CLEARED"}
+                #TODO: make previous entry inactive
+                self.set_faults_inactive(message.id)
+                active = False
+            else:
                 fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
                 fault_info = {"fid":fault.id, "fdesc":fault.description}
-            else:
-                fault_info = {"fid":"None", "fdesc":"None"}
+                active = True
+
 
             #Determine the new and old fault state names
             old_state = self.determine_device_from_fault(message.old_value)
@@ -76,8 +81,17 @@ class HistorySession():
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
             print(traceback.format_exc())
             return
-        fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault_info["fid"], fault_desc=fault_info["fdesc"], old_state=old_state, new_state=new_state, beam_class=beam_class, beam_destination=beam_dest)
+        fault_insert = fault_history.FaultHistory.__table__.insert().values(fault_id=fault_info["fid"], fault_desc=fault_info["fdesc"], old_state=old_state, new_state=new_state, beam_class=beam_class, beam_destination=beam_dest, active=active)
         self.execute_commit(fault_insert)
+        return
+    
+    def set_faults_inactive(self, fid):
+        #Look up latest fault with this fault id, set active to inactive
+        faults = self.history_conn.session.query(fault_history.FaultHistory).filter(fault_history.FaultHistory.fault_id==fid).filter(fault_history.FaultHistory.active==True).all()
+        for fault in faults:
+            fault.active = False
+            self.history_conn.session.commit()
+            print("fault ", fault, fault.id, fault.active)
         return
 
     def determine_device_from_fault(self, fstate_id):
@@ -189,17 +203,22 @@ class HistorySession():
         self.execute_commit(input_insert)
         return 
 
-    def get_last_faults(self, num_faults=10):
+    def get_fault_log(self, num_faults=10):
         """
-        Gets the ten most recent fault entries from the history database
+        Gets the specified number of recent fault log entries from the history database. Default is 10 entries.
 
         Params:
-            num_faults: (int) Number of faults to pull from the database, starting with the most recent. Default value of 10.
+            num_faults: (int) Number of fault entries to pull from the database, starting with the most recent. 
         """
         results = self.history_conn.session.query(fault_history.FaultHistory).order_by(fault_history.FaultHistory.timestamp.desc()).limit(num_faults).all()
         #stmt = select(fault_history.FaultHistory).order_by(fault_history.FaultHistory.timestamp.desc()).limit(num_faults)
         #results = self.history_conn.session.execute(stmt)
-        print("from session ~~~~\n", results, "\n", "\n")
+        print("from session ~~~~\n", results, "\n\n")
+        return results
+
+    def get_active_faults(self, num_faults=10):
+        results = self.history_conn.session.query(fault_history.FaultHistory).filter(fault_history.FaultHistory.active==True).order_by(fault_history.FaultHistory.timestamp.desc()).limit(num_faults).all()
+        print("from actives ~~~~\n", results, "\n\n")
         return results
 
     def get_all_faults_by_id(self, fault_id):

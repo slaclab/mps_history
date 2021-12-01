@@ -93,9 +93,17 @@ def generate_test_data(env):
     fault = [1, random.randint(1,3), random.randint(0,1), random.randint(0,1), 0]
     """
     #FaultType, Fault.id, FaultState.id, FaultState.id, AllowedClass.id
-    fault_all = [1, random.choice(f), random.randint(1,20), random.randint(1,20), random.choice(ac)]
-    fault_zero = [1, 0, 0, random.randint(1,20), random.choice(ac)]
-    fault_zero_2 = [1, 0, random.randint(1,20), 0, 0]
+    this_fault = random.choice(f)
+    this_bc = random.randint(1, 20)
+    second_bc = random.randint(1,20)
+    #set fault
+    fault_init = [1, this_fault, 0, this_bc, random.choice(ac)]
+    #more restrictive
+    fault_all = [1, this_fault, this_bc, second_bc, random.choice(ac)]
+    #clear fault
+    fault_clear = [1, this_fault, second_bc, 0, 0]
+    
+    active_fault = [1, random.choice(f), random.randint(1,20), random.randint(1,20), random.choice(ac)]
 
     #BypassStateType, AnalogDevice.id, oldValue, newValue, 0-31
     analog_bypass = [2, random.choice(result), random.randint(0,1), random.randint(0,1), random.randint(0, 31)]
@@ -109,8 +117,8 @@ def generate_test_data(env):
     #AnalogDeviceType, AnalogDevice.id, oldValue, newValue, 0
     analog = [6, random.choice(result), 0, 0, 0]
 
-    test_data = [fault_all, analog_bypass, digital_bypass, device_input, analog]
-    #test_data = [fault_all, fault_zero, fault_zero_2, analog_bypass, digital_bypass, device_input, analog]
+    #test_data = [fault_all, analog_bypass, digital_bypass, device_input, analog]
+    test_data = [fault_init, fault_all, fault_clear, active_fault, analog_bypass, digital_bypass, device_input, analog]
     pprint.pprint(test_data)
     return test_data
 

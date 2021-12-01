@@ -1,6 +1,7 @@
 import datetime
 
 from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.sql.sqltypes import Boolean
 from mps_database.models import Base
 
 class FaultHistory(Base):
@@ -23,6 +24,7 @@ class FaultHistory(Base):
   old_state = Column(String, nullable=False)
   beam_class = Column(String, nullable=False)
   beam_destination = Column(String, nullable=False)
+  active = Column(Boolean, nullable=True)
 
 
 
