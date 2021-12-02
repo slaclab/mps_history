@@ -211,14 +211,10 @@ class HistorySession():
             num_faults: (int) Number of fault entries to pull from the database, starting with the most recent. 
         """
         results = self.history_conn.session.query(fault_history.FaultHistory).order_by(fault_history.FaultHistory.timestamp.desc()).limit(num_faults).all()
-        #stmt = select(fault_history.FaultHistory).order_by(fault_history.FaultHistory.timestamp.desc()).limit(num_faults)
-        #results = self.history_conn.session.execute(stmt)
-        print("from session ~~~~\n", results, "\n\n")
         return results
 
     def get_active_faults(self, num_faults=10):
         results = self.history_conn.session.query(fault_history.FaultHistory).filter(fault_history.FaultHistory.active==True).order_by(fault_history.FaultHistory.timestamp.desc()).limit(num_faults).all()
-        print("from actives ~~~~\n", results, "\n\n")
         return results
 
     def get_all_faults_by_id(self, fault_id):
