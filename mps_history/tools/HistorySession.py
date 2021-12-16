@@ -13,6 +13,7 @@ class HistorySession():
         self.dev = dev
         self.history_conn = None
         self.conf_conn = None
+        print("dev is ", dev)
         self.logger = logger.Logger(stdout=True, dev=dev)
 
         if self.dev:
