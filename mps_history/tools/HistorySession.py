@@ -49,17 +49,16 @@ class HistorySession():
             message: [type(of message), id, old_value, new_value, aux(allowed_class)]
         """
         try:      
+            fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
             # Determine the fault id and description
             if message.new_value == 0:
-                fault_info = {"fid":message.id, "fdesc":"FAULT CLEARED"}
+                fault_info = {"fid":message.id, "fdesc":("FAULT CLEARED - " + fault.description)}
                 #TODO: make previous entry inactive
                 self.set_faults_inactive(message.id)
                 active = False
             else:
-                fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
                 fault_info = {"fid":fault.id, "fdesc":fault.description}
                 active = True
-
 
             #Determine the new and old fault state names
             old_state = self.determine_device_from_fault(message.old_value)
