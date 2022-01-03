@@ -20,9 +20,10 @@ def main():
     Main function responsible for calling whatever tools functions you need. 
     """
     #dev should be changed to True if being run on lcls-dev3
-    dev = False
+    dev = True
     #restart is True if you want tables to be wiped and recreated 
-    restart = False
+    #THIS DELETES THE CONFIG TABLE SOMEHOW
+    restart = True
 
     if dev:
         env = config.db_info["lcls-dev3"]
@@ -36,7 +37,7 @@ def main():
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__]
         #db_url = "sqlite:///{path_to_db}".format(path_to_db=db_path)
-        delete_history_db(tables, env, db_path=db_path)
+        #delete_history_db(tables, env, db_path=db_path)
         create_history_tables(tables, env, db_path=db_path)
     create_socket(host, env)
     return
