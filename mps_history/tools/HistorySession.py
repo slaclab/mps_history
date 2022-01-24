@@ -23,7 +23,7 @@ class HistorySession():
         Connects to the api for the history database
         """
         try:
-            self.history_api = HistoryAPI.HistoryAPI()
+            self.history_api = HistoryAPI.HistoryAPI(dev=self.dev)
         except:
             self.logger.log("DB ERROR: Unable to Connect to History API")
 
