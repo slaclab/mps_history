@@ -4,11 +4,16 @@ echo 'Starting History Server...'
 
 # Set the conda environment
 # Eval lets us avoid running conda init each time
-if [ `hostname` == 'lcls-dev3' ]; then
-  eval "$(conda shell.bash hook)"
-  #source $TOOLS/script/ENVS64.bash
+if [ `hostname` == 'lcls-dev3' ] || [`hostname` == 'lcls-dev1']; then
+  source $TOOLS/script/ENVS64.bash
+  #eval "$(conda shell.bash hook)"
+  source $PACKAGE_TOP/anaconda/2020.11/etc/profile.d/conda.sh  
   conda activate mps-environment
 fi
+#if [`hostname` == 'lcls-dev1' ]; then
+#  source $TOOLS/script/ENVS64.bash
+#  source $PACKAGE_TOP/anaconda/2020.11/etc/profile.d/conda.sh
+#fi
 if [ `hostname` == 'PC94483' ]; then
   eval "$(conda shell.bash hook)"
   conda activate mps-environment
@@ -16,7 +21,7 @@ fi
 # Test if the environment worked
 echo "Conda environment activated: $CONDA_PREFIX"
 
-#TODO: do I need this?
+#TODO: send in db as parameter?
 #current_db=$PHYSICS_TOP/mps_configuration/current
 #files=`ls $current_db/mps_config*.db | grep -v runtime |  wc -l`
 

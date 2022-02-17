@@ -20,10 +20,10 @@ def main():
     Main function responsible for calling whatever tools functions you need. 
     """
     #dev should be changed to True if being run on lcls-dev3
-    dev = False
+    dev = True
     #restart is True if you want tables to be wiped and recreated 
     #THIS DELETES THE CONFIG TABLE SOMEHOW
-    restart = True
+    restart = False
 
     if dev:
         env = config.db_info["lcls-dev3"]
