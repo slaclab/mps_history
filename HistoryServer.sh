@@ -24,6 +24,7 @@ fi
 #  source $PACKAGE_TOP/anaconda/2020.11/etc/profile.d/conda.sh
 #fi
 if [ `hostname` == 'PC94483' ]; then
+  mode='local'
   eval "$(conda shell.bash hook)"
   conda activate mps-environment
 fi
@@ -40,7 +41,7 @@ if [ $mode  == 'dev' ]; then
   export PYTHONPATH=$PYTHON_PATH:"/afs/slac/g/lcls/package/anaconda/2020.11/envs/mps-environment/bin/python":"/afs/slac.stanford.edu/u/cd/lking/mps/mps_database"
   python /u/cd/lking/mps/mps_history/start_history.py --port 3356 --host lcls-dev3 --dev
 fi
-if [ `hostname` == 'PC94483' ]; then
+if [ $mode == 'local' ]; then
   echo "test local"
   python start_history.py --port 3356  
 fi
