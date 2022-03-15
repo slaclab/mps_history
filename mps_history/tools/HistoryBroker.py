@@ -37,6 +37,7 @@ class HistoryBroker:
     def __init__(self, host, port, dev):
         self.host = host
         self.port = port
+        self.sub_port = "123456"
         self.dev = dev
         self.sock = None
         self.logger = logger.Logger(stdout=True, dev=dev)
@@ -67,7 +68,18 @@ class HistoryBroker:
             self.logger.log("SOCKET ERROR: Failed to create socket")
             self.logger.log("Exiting -----")
             sys.exit()
+
+    def create_subscriber_socket(self):
+        try:
+            self.sub_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sub_sock.bind((self.host, self.sub_port))
         
+        except socket.error:
+            self.logger.log("SOCKET ERROR: Failed to create socket")
+            self.logger.log("Exiting -----")
+            sys.exit()
+        return
+
     def subscribe(self, msg_type, connector):
         if (msg_type == 1): # FaultStateType 
             self.fault_listeners.append[connector]
