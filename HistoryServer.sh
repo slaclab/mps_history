@@ -2,6 +2,15 @@
 #This file has been copied & edited from the depreciated EicHistoryServer.
 echo 'Starting History Server...'
 
+#Check for dev, assume dev if nothing set
+if [ -n "$1" ]
+  then echo "mode is $1"
+  mode=$1
+else 
+  echo "mode is unset, default dev"
+  mode='dev'
+fi
+
 # Set the conda environment
 # Eval lets us avoid running conda init each time
 if [ `hostname` == 'lcls-dev3' ] || [`hostname` == 'lcls-dev1']; then
@@ -26,8 +35,7 @@ echo "Conda environment activated: $CONDA_PREFIX"
 #files=`ls $current_db/mps_config*.db | grep -v runtime |  wc -l`
 
 #TODO: Add one in for prod
-if [ `hostname` == 'lcls-dev3' ]; then
-  echo "lcls-dev3"
+if [ $mode  == 'dev' ]; then
   #$PHYSICS_TOP/mps_history/start_history.py --port 3356 --dev
   export PYTHONPATH=$PYTHON_PATH:"/afs/slac/g/lcls/package/anaconda/2020.11/envs/mps-environment/bin/python":"/afs/slac.stanford.edu/u/cd/lking/mps/mps_database"
   python /u/cd/lking/mps/mps_history/start_history.py --port 3356 --host lcls-dev3 --dev
