@@ -5,6 +5,8 @@ from mps_database.mps_config import MPSConfig, models
 
 from mps_history.models import fault_history, analog_history, bypass_history, input_history
 from sqlalchemy import insert, select
+from sqlalchemy import create_engine, MetaData
+from sqlalchemy.orm import sessionmaker
 
 
 class HistoryAPI():
@@ -25,7 +27,6 @@ class HistoryAPI():
         for fault in faults:
             fault.active = False
             self.history_conn.session.commit()
-            print("fault ", fault, fault.id, fault.active)
         return 
 
     def determine_thresholds(self, bits):
@@ -56,7 +57,6 @@ class HistoryAPI():
         Params:
             fault_id
         """
-        print("Selecting entries ", fault_id)
         stmt = select(fault_history.FaultHistory.timestamp).where(fault_history.FaultHistory.fault_id == fault_id)
         result = self.history_conn.session.execute(stmt)
         return result.fetchall()
@@ -81,12 +81,13 @@ class HistoryAPI():
         """
         Creates a interactable connection to the history database
         """
-        db_file = self.default_dbs["file_names"]["history"]
+        db_file = self.default_dbs["file_paths"]["history"] + "/" + self.default_dbs["file_names"]["history"]
         try:
-            self.history_conn = MPSConfig(db_name="history", db_file=db_file, file_path=self.default_dbs["file_paths"]["history"])
+            self.history_conn = MPSConfig(filename=db_file)
         except:
             self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))
         return
+
 
     def add_fault(self, fault_info):
         """

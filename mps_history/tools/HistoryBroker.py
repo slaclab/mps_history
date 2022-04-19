@@ -1,4 +1,4 @@
-import config, socket, sys, argparse, datetime, errno, traceback
+import config, socket, sys, argparse, datetime, errno, traceback, os
 from ctypes import *
 
 from mps_database.mps_config import MPSConfig, models
@@ -106,11 +106,14 @@ class HistoryBroker:
         Creates a interactable connection to the configuration database
         """
         #TODO: add cli args later
-        db_file = self.default_dbs["file_names"]["config"]
+        db_file = self.default_dbs["file_paths"]["config"] + "/" + self.default_dbs["file_names"]["config"]
+        print("FINAL 2 LOL ", db_file)
         try:
-            self.conf_conn = MPSConfig(db_name="config", db_file=db_file, file_path=self.default_dbs["file_paths"]["config"])
-        except:
+            self.conf_conn = MPSConfig(filename=db_file)
+        except Exception as e:
+            print(e)
             self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))
+            exit()
         return    
 
     def decode_message(self, message):
@@ -256,7 +259,6 @@ class HistoryBroker:
                 raise
         except:
             self.logger.log("SESSION ERROR: Add Device Input ", message.to_string())
-            print(traceback.format_exc())
             return
         old_name = channel.z_name
         new_name = channel.z_name
@@ -274,6 +276,8 @@ class HistoryBroker:
         """
         if fstate_id == 0:
             return "None"
+        print("pls")
+        print(self.conf_conn)
         fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==fstate_id).first()
         device_state = self.conf_conn.session.query(models.DeviceState).filter(models.DeviceState.id==fault_state.device_state_id).first()
         return device_state.name

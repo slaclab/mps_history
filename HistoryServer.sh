@@ -13,11 +13,12 @@ fi
 
 # Set the conda environment
 # Eval lets us avoid running conda init each time
-if [ `hostname` == 'lcls-dev3' ] || [`hostname` == 'lcls-dev1']; then
+if [ `hostname` == 'lcls-dev3' ] || [ `hostname` == 'lcls-dev1' ]; then
   source $TOOLS/script/ENVS64.bash
   #eval "$(conda shell.bash hook)"
   source $PACKAGE_TOP/anaconda/2020.11/etc/profile.d/conda.sh  
   conda activate mps-environment
+  echo "Conda environment activated: $CONDA_PREFIX"
 fi
 #if [`hostname` == 'lcls-dev1' ]; then
 #  source $TOOLS/script/ENVS64.bash
@@ -27,9 +28,8 @@ if [ `hostname` == 'PC94483' ]; then
   mode='local'
   eval "$(conda shell.bash hook)"
   conda activate mps-environment
+  echo "Conda environment activated: $CONDA_PREFIX"
 fi
-# Test if the environment worked
-echo "Conda environment activated: $CONDA_PREFIX"
 
 #TODO: send in db as parameter?
 #current_db=$PHYSICS_TOP/mps_configuration/current

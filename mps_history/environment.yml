@@ -1,0 +1,54 @@
+name: mps-environment
+channels:
+  - defaults
+dependencies:
+  - libblas
+  - libffi
+  - libgfortran-ng
+  - zipp
+  - sqlite
+  - libcblas
+  - perl
+  - python=3.8
+  - tabulate
+  - openssl
+  - ld_impl_linux-64
+  - cheetah3
+  - pyepics
+  - markdown
+  - readline
+  - typing_extensions
+  - epics-base
+  - libopenblas
+  - pytz
+  - zlib
+  - tk
+  - xz
+  - pyyaml
+  - setuptools
+  - conda-pack
+  - certifi
+  - _libgcc_mutex
+  - markupsafe
+  - mako
+  - python-editor
+  - pip
+  - greenlet
+  - sqlalchemy
+  - yaml
+  - ncurses
+  - importlib-metadata
+  - libgfortran5
+  - python_abi
+  - liblapack
+  - pyparsing
+  - ca-certificates
+  - wheel
+  - numpy
+  - psutil
+  - pydm
+  - pyqtgraph
+  - six
+  - pyqt=5
+  - scipy
+prefix: /Users/lking/opt/anaconda3/envs/mps-environment
