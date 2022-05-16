@@ -275,8 +275,6 @@ class HistoryBroker:
         """
         if fstate_id == 0:
             return "None"
-        print("pls")
-        print(self.conf_conn)
         fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==fstate_id).first()
         device_state = self.conf_conn.session.query(models.DeviceState).filter(models.DeviceState.id==fault_state.device_state_id).first()
         return device_state.name
