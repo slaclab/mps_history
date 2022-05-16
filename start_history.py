@@ -1,5 +1,5 @@
 import argparse
-from mps_history.tools import HistoryServer
+from mps_history.tools import HistoryBroker
 
 def main():
     parser = argparse.ArgumentParser(description='Receive MPS history messages')
@@ -27,7 +27,7 @@ def main():
     else:
         dev = False
 
-    hist = HistoryServer.HistoryServer(host, port, dev)
+    hist = HistoryBroker.HistoryBroker(host, port, dev)
     hist.listen_socket()    
     return
 

@@ -23,7 +23,7 @@ def main():
     dev = True
     #restart is True if you want tables to be wiped and recreated 
     #THIS DELETES THE CONFIG TABLE SOMEHOW
-    restart = True
+    restart = False
 
     if dev:
         env = config.db_info["lcls-dev3"]
@@ -32,7 +32,6 @@ def main():
         env = config.db_info["test"]
         host = '127.0.0.1'
     db_path = env["file_paths"]["history"]
-    print("db_path", db_path)
 
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__]
@@ -49,18 +48,16 @@ def create_socket(host, env):
     Creates a socket and sends over generated test insert data.
     """
     port = 3356
+    num_test = 1
     
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((host, port))
         # TODO: remove test data from this function
-        for data in generate_test_data(env):
-            s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        for data in generate_test_data(env):
-            s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        for data in generate_test_data(env):
-            s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        for data in generate_test_data(env):
-            s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        curr = 0
+        while curr < num_test:
+            for data in generate_test_data(env):
+                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+            curr +=1 
         #for data in create_bad_data():
             #s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
 
@@ -72,7 +69,8 @@ def generate_test_data(env):
 
     Type number 3 is skipped because it is defined as "BypassValueType" in the central node ioc, and does not appear to be relevant
     """
-    conf_conn = MPSConfig(db_name="config", db_file=env["file_names"]["config"], file_path=env["file_paths"]["config"])
+    filename = env["file_paths"]["config"] + "/" + env["file_names"]["config"]
+    conf_conn = MPSConfig()
     ad_select = select(models.AnalogDevice.id)
     ad_result = conf_conn.session.execute(ad_select)
     result = [r[0] for r in ad_result]
@@ -83,9 +81,15 @@ def generate_test_data(env):
 
     f_select = select(models.Fault.id)
     f_res = conf_conn.session.execute(f_select)
-    #print(f_res.__dict__)
     f = [r[0] for r in f_res]
 
+    analog_select = select(models.AnalogDevice.id)
+    an_res = conf_conn.session.execute(analog_select)
+    analog = [r[0] for r in an_res]
+
+    device_select = select(models.DeviceInput.id)
+    dev_res = conf_conn.session.execute(device_select)
+    device = [r[0] for r in dev_res]
     #type, fault.id, old_val, new_val, DeviceState.id(opt)
     """
     Orig faults
@@ -107,20 +111,17 @@ def generate_test_data(env):
     active_fault = [1, random.choice(f), random.randint(1,20), random.randint(1,20), random.choice(ac)]
 
     #BypassStateType, AnalogDevice.id, oldValue, newValue, 0-31
-    analog_bypass = [2, random.choice(result), random.randint(0,1), random.randint(0,1), random.randint(0, 31)]
+    analog_bypass = [2, random.choice(analog), random.randint(0,1), random.randint(0,1), random.randint(0, 31)]
     #BypassStateType, DeviceInput.id, oldValue, newValue, index(>31)
-    #digital_bypass = [2, random.randint(1,1011), random.randint(0,1), random.randint(0,1), 32]
-    digital_bypass = [2, random.randint(1,2), random.randint(0,1), random.randint(0,1), 32]
+    digital_bypass = [2, random.choice(device), random.randint(0,1), random.randint(0,1), 32]
     #DeviceInputType, DeviceInput.id, oldValue, newValue, 0
-    #device_input = [5, random.randint(1,1011), random.randint(0,1), random.randint(0,1), 0]
-    device_input = [5, random.randint(1,2), random.randint(0,1), random.randint(0,1), 0]
+    device_input = [5, random.choice(device), random.randint(0,1), random.randint(0,1), 0]
 
     #AnalogDeviceType, AnalogDevice.id, oldValue, newValue, 0
-    analog = [6, random.choice(result), 0, 0, 0]
+    analog = [6, random.choice(analog), 0, 0, 0]
 
     #test_data = [fault_all, analog_bypass, digital_bypass, device_input, analog]
     test_data = [fault_init, fault_all, fault_clear, active_fault, analog_bypass, digital_bypass, device_input, analog]
-    pprint.pprint(test_data)
     return test_data
 
 def create_bad_data():
@@ -140,11 +141,11 @@ def create_history_tables(tables, env, db_path):
     Should not be called regularly.
     """
     try:
-        print(env["file_names"]["history"], db_path)
-        history_engine = MPSConfig(db_file=env["file_names"]["history"], db_name="history", file_path=db_path).last_engine
+        filename = db_path + env["file_names"]["history"]
+        history_engine = MPSConfig(filename=filename).engine
         Base.metadata.create_all(history_engine, tables=tables)
     except:
-         print("ERROR: Unable to create tables in mps_gun_history.db")
+        print("ERROR: Unable to create tables in mps_gun_history.db")
     return
 
 def delete_history_db(tables, env, db_path):
@@ -155,7 +156,8 @@ def delete_history_db(tables, env, db_path):
     #Add function to delete all tables/rows
     try:
         meta = models.Base.metadata
-        meta.bind = MPSConfig(db_file=env["file_names"]["history"], db_name="history", file_path=db_path).last_engine
+        filename = db_path + env["file_names"]["history"]
+        meta.bind = MPSConfig(filename=filename).engine
         meta.drop_all(tables=tables)
     except exc.OperationalError as e:
         print("Database does not exist, cannot delete tables")

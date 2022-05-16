@@ -2,12 +2,12 @@ db_info  = {
     "lcls-dev3":{
         "file_paths":{
             #"config":"/afs/slac/g/lcls/physics/mps_configuration/current",
-            "config":"/u/cd/lking/mps/mps_history",
+            "config":"/afs/slac/g/lcls/physics/mps_configuration/2022-03-21-a",
             "history":"/u/cd/lking/mps/mps_history",
             "runtime":"/u1/lcls/physics/mps_manager"
         },
         "file_names":{
-            "config":"mps_config_imported.db",
+            "config":"mps_config-2022-03-21-a.db",
             "history":"mps_gun_history.db",
             "runtime":None
         },
@@ -33,17 +33,17 @@ db_info  = {
     "prod":
     {
         "file_paths":{
-            "config":"",
-            "history":"",
+            "config":"/usr/local/lcls/physics/mps_configuration/current",
+            "history":"/u1/lcls/tools/mpsHistoryServer/mps_history_server2",
             "runtime":""
         },
         "file_names":{
-            "config":"",
-            "history":None,
+            "config":"mps_config-2022-03-21-a.db",
+            "history":"mps_history.db",
             "runtime":None
         },
         "logger":{
-            "log_directory":""
+            "log_directory":"/u1/lcls/tools/mpsHistoryServer/mps_history_server2/logs"
         }
     },
 
