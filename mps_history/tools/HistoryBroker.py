@@ -234,7 +234,6 @@ class HistoryBroker:
                 raise
         except:
             self.logger.log("SESSION ERROR: Add Bypass ", message.to_string())
-            print(traceback.format_exc())
             return
         bypass_info = {"type":"bypass", "channel":channel.name, "new_state":new_name, "old_state":old_name, "integrator":message.aux}
         return bypass_info
