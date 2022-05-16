@@ -84,17 +84,14 @@ def generate_test_data(env):
     f_select = select(models.Fault.id)
     f_res = conf_conn.session.execute(f_select)
     f = [r[0] for r in f_res]
-    print(f)
-    
+
     analog_select = select(models.AnalogDevice.id)
     an_res = conf_conn.session.execute(analog_select)
     analog = [r[0] for r in an_res]
-    print(analog)
 
     device_select = select(models.DeviceInput.id)
     dev_res = conf_conn.session.execute(device_select)
     device = [r[0] for r in dev_res]
-    print(device)
     #type, fault.id, old_val, new_val, DeviceState.id(opt)
     """
     Orig faults
@@ -116,11 +113,11 @@ def generate_test_data(env):
     active_fault = [1, random.choice(f), random.randint(1,20), random.randint(1,20), random.choice(ac)]
 
     #BypassStateType, AnalogDevice.id, oldValue, newValue, 0-31
-    analog_bypass = [2, analog, random.randint(0,1), random.randint(0,1), random.randint(0, 31)]
+    analog_bypass = [2, random.choice(analog), random.randint(0,1), random.randint(0,1), random.randint(0, 31)]
     #BypassStateType, DeviceInput.id, oldValue, newValue, index(>31)
-    digital_bypass = [2, device, random.randint(0,1), random.randint(0,1), 32]
+    digital_bypass = [2, random.choice(device), random.randint(0,1), random.randint(0,1), 32]
     #DeviceInputType, DeviceInput.id, oldValue, newValue, 0
-    device_input = [5, device, random.randint(0,1), random.randint(0,1), 0]
+    device_input = [5, random.choice(device), random.randint(0,1), random.randint(0,1), 0]
 
     #AnalogDeviceType, AnalogDevice.id, oldValue, newValue, 0
     analog = [6, analog, 0, 0, 0]
