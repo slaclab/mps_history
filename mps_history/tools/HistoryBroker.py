@@ -106,10 +106,9 @@ class HistoryBroker:
         Creates a interactable connection to the configuration database
         """
         #TODO: add cli args later
-        db_file = self.default_dbs["file_paths"]["config"] + "/" + self.default_dbs["file_names"]["config"]
-        print("FINAL 2 LOL ", db_file)
+        #db_file = self.default_dbs["file_paths"]["config"] + "/" + self.default_dbs["file_names"]["config"]
         try:
-            self.conf_conn = MPSConfig(filename=db_file)
+            self.conf_conn = MPSConfig()
         except Exception as e:
             print(e)
             self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))

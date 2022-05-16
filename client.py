@@ -20,7 +20,7 @@ def main():
     Main function responsible for calling whatever tools functions you need. 
     """
     #dev should be changed to True if being run on lcls-dev3
-    dev = False
+    dev = True
     #restart is True if you want tables to be wiped and recreated 
     #THIS DELETES THE CONFIG TABLE SOMEHOW
     restart = False
@@ -70,8 +70,6 @@ def generate_test_data(env):
     Type number 3 is skipped because it is defined as "BypassValueType" in the central node ioc, and does not appear to be relevant
     """
     filename = env["file_paths"]["config"] + "/" + env["file_names"]["config"]
-    print("FINAL ", filename)
-    #conf_conn = MPSConfig(filename=filename)
     conf_conn = MPSConfig()
     ad_select = select(models.AnalogDevice.id)
     ad_result = conf_conn.session.execute(ad_select)
@@ -120,7 +118,7 @@ def generate_test_data(env):
     device_input = [5, random.choice(device), random.randint(0,1), random.randint(0,1), 0]
 
     #AnalogDeviceType, AnalogDevice.id, oldValue, newValue, 0
-    analog = [6, analog, 0, 0, 0]
+    analog = [6, random.choice(analog), 0, 0, 0]
 
     #test_data = [fault_all, analog_bypass, digital_bypass, device_input, analog]
     test_data = [fault_init, fault_all, fault_clear, active_fault, analog_bypass, digital_bypass, device_input, analog]
