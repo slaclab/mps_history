@@ -1,6 +1,6 @@
 # MPS History Server
 
-## New Version (7/12/2023)
+## New Version 0.3.0 (7/12/2023)
 1. Will make changes to socket recieving data from central nodes if needed
 2. Will update queries to the new configuration DB schema
 3. Will change SQLite history DB to MongoDb
