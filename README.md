@@ -1,5 +1,12 @@
 # MPS History Server
 
+## New Version (7/12/2023)
+1. Will make changes to socket recieving data from central nodes if needed
+2. Will update queries to the new configuration DB schema
+3. Will change SQLite history DB to MongoDb
+4. Will package data into JSON to load into Kafka -> Kubernetes -> MongoDB infrastructure led by Claudio Bisegni
+5. Will update documentation
+
 ### Running the Server
 Run the history server with the command:  
 `./HistoryServer.sh` 
