@@ -13,7 +13,7 @@ class Logger:
         else:
             #dir_name = os.path.dirname(self.log_file_name)
             if dev:
-                base_name = config.db_info["lcls-dev3"]["logger"]["log_directory"]
+                base_name = config.db_info["dev-rhel7"]["logger"]["log_directory"]
             else:
                 base_name = config.db_info["test"]["logger"]["log_directory"]
             # TODO: commented out for testing

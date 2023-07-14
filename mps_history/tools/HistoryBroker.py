@@ -5,6 +5,9 @@ from mps_database.mps_config import MPSConfig, models
 from mps_history.models import fault_history
 from mps_history.tools import HistorySession, logger
 
+""" TEMP """
+import struct
+""" TEMP """
 
 class Message(Structure):
     """
@@ -41,12 +44,28 @@ class HistoryBroker:
         self.sock = None
         self.logger = logger.Logger(stdout=True, dev=dev)
 
+        """ TEMP """
+        self.receive_count = 0
+        """ TEMP """
+
         if self.dev:
-            self.default_dbs = config.db_info["lcls-dev3"]
+            self.default_dbs = config.db_info["dev-rhel7"]
         else:
             self.default_dbs = config.db_info["test"]
         print("Dev is:", dev)
+
         self.connect_conf_db()
+
+        """ TEMP """
+        print("stop here1") 
+        # do some random query to the conf_db to see if it actually connected
+        analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==68).first()
+        channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
+
+        print(analog_device.channel_id)
+        print(channel.name)
+        
+        """ TEMP """
 
         #Listeners for the various message types
         history_session = HistorySession.HistorySession(dev=dev)
@@ -85,16 +104,27 @@ class HistoryBroker:
         """
         Endless function that waits for data to be sent over the socket
         """
+        print("Current receive count: " + str(self.receive_count))
         while True:
             self.receive_update()
 
     def receive_update(self):
         """
-        Receives data from the socket, puts it into a message object, and sends it to the decoder
+        Receives data from the socket, puts it into a message object, and sends it to the central_node_data_queue to be processed
         """
         message=Message(0, 0, 0, 0, 0)
-        
+        print("socket listening")
         data, ipAddr = self.sock.recvfrom(sizeof(Message))
+        """ TEMP """
+        self.receive_count += 1
+        print("Received\n", data)
+        message = Message.from_buffer_copy(data)
+        print("Message\n", message.type, message.id, message.old_value, message.new_value, message.aux)
+        print(self.receive_count)
+        #print("From " + str(ipAddr))
+        return
+        """ TEMP """
+       
         if data:
             print("Received\n", data)
             message = Message.from_buffer_copy(data)

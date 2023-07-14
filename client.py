@@ -13,25 +13,34 @@ from sqlalchemy import select, exc
 from ctypes import *
 
 import socket, random, pprint, struct
-
+""" TEMP """
+from time import time
+""" TEMP """
 
 def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
-    #dev should be changed to True if being run on lcls-dev3
+    #dev should be changed to True if being run on dev-rhel7
     dev = True
     #restart is True if you want tables to be wiped and recreated 
     #THIS DELETES THE CONFIG TABLE SOMEHOW
     restart = False
 
     if dev:
-        env = config.db_info["lcls-dev3"]
-        host = "lcls-dev3"
+        env = config.db_info["dev-rhel7"]
+        host = "dev-rhel7"
     else:
         env = config.db_info["test"]
         host = '127.0.0.1'
     db_path = env["file_paths"]["history"]
+
+    conf_conn = MPSConfig(config.db_info["dev-rhel7"]["file_paths"]["config"] + '/' + config.db_info["dev-rhel7"]["file_names"]["config"]) # connect to config db
+
+    """ TEMP """
+    create_socket(host, env, conf_conn)
+    return
+    """ TEMP """
 
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__]
@@ -41,7 +50,7 @@ def main():
     create_socket(host, env)
     return
 
-def create_socket(host, env):
+def create_socket(host, env, conf_conn):
     """
     Acts as a client to connect to HistoryServer backend. 
 
@@ -52,10 +61,28 @@ def create_socket(host, env):
     
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((host, port))
+        """ TEMP """
+        print(host)
+        print(port)
+        print("connected to socket")
+
+        # send in 1000 packets, and calculate the time it takes
+        time_begin = time()
+        for i in range(125): # each iteration sends 8 packets so 125 * 8 = 1000 packets
+            for data in generate_test_data(env, conf_conn): # generates 8 sets of data
+                #print(data)
+                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+
+        time_end = time()
+        print("Time elapsed: ", end="")
+        print(time_end - time_begin)
+        return
+        """ TEMP """
         # TODO: remove test data from this function
         curr = 0
         while curr < num_test:
             for data in generate_test_data(env):
+                print(data)
                 s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
             curr +=1 
         #for data in create_bad_data():
@@ -63,14 +90,14 @@ def create_socket(host, env):
 
     return
 
-def generate_test_data(env):
+def generate_test_data(env, conf_conn):
     """
     Generates a suite of realistic test data for entering into the history db.
 
     Type number 3 is skipped because it is defined as "BypassValueType" in the central node ioc, and does not appear to be relevant
     """
+    generate_time_begin = time()
     filename = env["file_paths"]["config"] + "/" + env["file_names"]["config"]
-    conf_conn = MPSConfig()
     ad_select = select(models.AnalogDevice.id)
     ad_result = conf_conn.session.execute(ad_select)
     result = [r[0] for r in ad_result]
@@ -122,6 +149,9 @@ def generate_test_data(env):
 
     #test_data = [fault_all, analog_bypass, digital_bypass, device_input, analog]
     test_data = [fault_init, fault_all, fault_clear, active_fault, analog_bypass, digital_bypass, device_input, analog]
+    generate_time_end = time()
+    #print("Generate Data Time elapsed: ", end="")
+    #print(generate_time_end - generate_time_begin)
     return test_data
 
 def create_bad_data():

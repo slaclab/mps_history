@@ -13,7 +13,7 @@ class HistoryAPI():
     def __init__(self, dev=None):
         self.dev = dev
         if self.dev:
-            self.default_dbs = config.db_info["lcls-dev3"]
+            self.default_dbs = config.db_info["dev-rhel7"]
         else:
             self.default_dbs = config.db_info["test"]
 
