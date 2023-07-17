@@ -4,6 +4,7 @@ from ctypes import *
 class Message(Structure):
     """
     Class responsible for defining messages coming from the Central Node IOC
+    5 unsigned ints - 20 bytes of data
 
     type: 1-6 depending on the type of data to be processed
     id: generally corresponds to device id, but changes depending on message type
@@ -66,20 +67,13 @@ class HistoryListener:
         message=Message(0, 0, 0, 0, 0)
         print("socket listening")
         data, ipAddr = self.sock.recvfrom(sizeof(Message))
-        """ TEMP """
-        self.receive_count += 1
+        self.receive_count += 1 # TEMP
         print("Received\n", data)
         message = Message.from_buffer_copy(data)
         print("Message\n", message.type, message.id, message.old_value, message.new_value, message.aux)
         print(self.receive_count)
-        #print("From " + str(ipAddr))
-        # TODO - send data received to central_node_data_queue
+
+        self.central_node_data_queue.put(message)
         return
-        """ TEMP """
-       
-        if data:
-            print("Received\n", data)
-            message = Message.from_buffer_copy(data)
-            print("Message\n", message.type, message.id, message.old_value, message.new_value, message.aux)
-            self.decode_message(message)
+        
 

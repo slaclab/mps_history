@@ -9,40 +9,18 @@ from mps_history.tools import HistorySession, logger
 import struct
 """ TEMP """
 
-class Message(Structure):
-    """
-    Class responsible for defining messages coming from the Central Node IOC
-
-    type: 1-6 depending on the type of data to be processed
-    id: generally corresponds to device id, but changes depending on message type
-    old_value, new_value: the data's initial and new values
-    aux: auxillary data that may or may not be included, depending on type -  
-        Expected data specifics will be specified in the processing functions
-    """
-    _fields_ = [
-        ("type", c_uint),
-        ("id", c_uint),
-        ("old_value", c_uint),
-        ("new_value", c_uint),
-        ("aux", c_uint),
-        ]
-    
-    def to_string(self):
-        return str(self.type) + " " + str(self.id) + " " + str(self.old_value) + " " + str(self.new_value) + " " + str(self.aux) 
-
 class HistoryBroker:
     """
     Most of this class has been taken from the depreciated EicHistory.py server. 
 
-    Establishes a socket responsible for receiving connections/data from the central node, 
-    and sending them off for processing. 
+    Processes the data from central_nodes by querying the config DB, then sending it to 
+    kubernetes infrastructure -> history DB
     """
-    def __init__(self, host, port, dev):
-        self.host = host
-        self.port = port
+    def __init__(self, central_node_data_queue, dev):
+        self.central_node_data_queue = central_node_data_queue
         self.dev = dev
         self.sock = None
-        self.logger = logger.Logger(stdout=True, dev=dev)
+        self.logger = logger.Logger(stdout=True, dev=dev) # TODO - may need to change filenames
 
         """ TEMP """
         self.receive_count = 0
@@ -52,91 +30,45 @@ class HistoryBroker:
             self.default_dbs = config.db_info["dev-rhel7"]
         else:
             self.default_dbs = config.db_info["test"]
-        print("Dev is:", dev)
 
-        self.connect_conf_db()
+        """ TEMP - uncomment block below """
+        
 
-        """ TEMP """
-        print("stop here1") 
-        # do some random query to the conf_db to see if it actually connected
-        analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==68).first()
-        channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
+        # self.connect_conf_db()
 
-        print(analog_device.channel_id)
-        print(channel.name)
+        # """ TEMP """
+        # print("stop here1") 
+        # # do some random query to the conf_db to see if it actually connected
+        # analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==68).first()
+        # channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
+
+        # print(analog_device.channel_id)
+        # print(channel.name)
         
         """ TEMP """
-
-        #Listeners for the various message types
-        history_session = HistorySession.HistorySession(dev=dev)
-
-        self.fault_listeners = [history_session]
-        self.analog_listeners = [history_session]
-        self.input_listeners = [history_session]
-        self.bypass_listeners = [history_session]
-              # create dgram udp socket
         
-        print("Host in server: ", self.host)
 
-        try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.bind((self.host, self.port))
+    def process_queue(self):
+        """
+        Process any items in the central_node_data_queue
+        """
         
-        except socket.error:
-            self.logger.log("SOCKET ERROR: Failed to create socket")
-            self.logger.log("Exiting -----")
-            sys.exit()
-        
-    def subscribe(self, msg_type, connector):
-        if (msg_type == 1): # FaultStateType 
-            self.fault_listeners.append[connector]
-        elif (msg_type == 2): # BypassStateType
-            self.bypass_listeners.append[connector]
-        elif (msg_type == 5): # DeviceInput (DigitalChannel)
-            self.input_listeners.append[connector]
-        elif (msg_type == 6): # AnalogDevice
-            self.analog_listeners.append[connector]
-        else:        
-            print("ERROR: message type ", msg_type, " not valid for subscriptions")
-        return    
+        if not self.central_node_data_queue.empty():
+            message = self.central_node_data_queue.get()
+            print("Worker received message! ", end="")
+            print("current queue size: " + str(self.central_node_data_queue.qsize()), end=" ")
+            print("Message ", message.type, message.id, message.old_value, message.new_value, message.aux)
+           
+            # TEMP - uncomment the decode_message
+            #self.decode_message(message)
 
-    def listen_socket(self):
-        """
-        Endless function that waits for data to be sent over the socket
-        """
-        print("Current receive count: " + str(self.receive_count))
-        while True:
-            self.receive_update()
-
-    def receive_update(self):
-        """
-        Receives data from the socket, puts it into a message object, and sends it to the central_node_data_queue to be processed
-        """
-        message=Message(0, 0, 0, 0, 0)
-        print("socket listening")
-        data, ipAddr = self.sock.recvfrom(sizeof(Message))
-        """ TEMP """
-        self.receive_count += 1
-        print("Received\n", data)
-        message = Message.from_buffer_copy(data)
-        print("Message\n", message.type, message.id, message.old_value, message.new_value, message.aux)
-        print(self.receive_count)
-        #print("From " + str(ipAddr))
-        return
-        """ TEMP """
-       
-        if data:
-            print("Received\n", data)
-            message = Message.from_buffer_copy(data)
-            print("Message\n", message.type, message.id, message.old_value, message.new_value, message.aux)
-            self.decode_message(message)
     
     def connect_conf_db(self):
         """
         Creates a interactable connection to the configuration database
         """
         #TODO: add cli args later
-        #db_file = self.default_dbs["file_paths"]["config"] + "/" + self.default_dbs["file_names"]["config"]
+        db_file = self.default_dbs["file_paths"]["config"] + "/" + self.default_dbs["file_names"]["config"]
         try:
             self.conf_conn = MPSConfig()
         except Exception as e:
@@ -151,20 +83,17 @@ class HistoryBroker:
         """
         if (message.type == 1): # FaultStateType 
             data = self.process_fault(message)
-            listeners = self.fault_listeners
         elif (message.type == 2): # BypassStateType
             data = self.process_bypass(message)
-            listeners = self.bypass_listeners
         elif (message.type == 5): # DeviceInput (DigitalChannel)
             data = self.process_input(message)
-            listeners = self.input_listeners
         elif (message.type == 6): # AnalogDevice
             data = self.process_analog(message)
-            listeners = self.analog_listeners
         else:
             self.logger.log("DATA ERROR: Bad Message Type", message.to_string())
-        # Send the data to the relevant listeners
-        self.send_data(data, listeners)
+
+        # TODO - Send the data to the Kubernetes infrastructure
+        # self.send_data(data, listeners)
         return
 
     def send_data(self, data, listeners):
