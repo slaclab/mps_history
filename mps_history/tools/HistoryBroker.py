@@ -1,13 +1,49 @@
 import config, socket, sys, argparse, datetime, errno, traceback, os
 from ctypes import *
 
+""" TEMP """
+# Forced config mps_database to point to the new_mpsdb 
+import sys
+# caution: path[0] is reserved for script path (or '' in REPL)
+sys.path.insert(1, '/u/cd/pnispero/mps/mps_database_new')
+""" TEMP """
+
 from mps_database.mps_config import MPSConfig, models
-from mps_history.models import fault_history
-from mps_history.tools import HistorySession, logger
+#from mps_history.models import fault_history
+from mps_history.tools import logger
+from sqlalchemy import select
 
 """ TEMP """
 import struct
+
+import inspect
+print(inspect.getfile(MPSConfig))
+print(inspect.getfile(models))
+
+class Message(Structure):
+    """
+    Class responsible for defining messages coming from the Central Node IOC
+    5 unsigned ints - 20 bytes of data
+
+    type: 1-6 depending on the type of data to be processed
+    id: generally corresponds to device id, but changes depending on message type
+    old_value, new_value: the data's initial and new values
+    aux: auxillary data that may or may not be included, depending on type -  
+        Expected data specifics will be specified in the processing functions
+    """
+    _fields_ = [
+        ("type", c_uint),
+        ("id", c_uint),
+        ("old_value", c_uint),
+        ("new_value", c_uint),
+        ("aux", c_uint),
+        ]
+    
+    def to_string(self):
+        return str(self.type) + " " + str(self.id) + " " + str(self.old_value) + " " + str(self.new_value) + " " + str(self.aux) 
 """ TEMP """
+
+
 
 class HistoryBroker:
     """
@@ -22,29 +58,36 @@ class HistoryBroker:
         self.sock = None
         self.logger = logger.Logger(stdout=True, dev=dev) # TODO - may need to change filenames
 
-        """ TEMP """
-        self.receive_count = 0
-        """ TEMP """
-
         if self.dev:
             self.default_dbs = config.db_info["dev-rhel7"]
         else:
             self.default_dbs = config.db_info["test"]
 
-        """ TEMP - uncomment block below """
-        
-
-        # self.connect_conf_db()
+        self.connect_conf_db()
 
         # """ TEMP """
-        # print("stop here1") 
-        # # do some random query to the conf_db to see if it actually connected
-        # analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==68).first()
-        # channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
+        # do some random query to the conf_db to see if it actually connected
+        message = Message(1, 472, 6, 6, 14762)    
+        #fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==message.id).first()
+        query_fault = select(models.fault.Fault).where(models.fault.Fault.id==message.id) # you have to do 'fault.Fault' because there is 2 classes defined in fault.py
+        print(query_fault)
+        test = self.conf_conn.session.execute(query_fault)
+        print(test)
 
-        # print(analog_device.channel_id)
-        # print(channel.name)
+        fault = self.conf_conn.session.query(models.fault.Fault).filter(models.fault.Fault.id==message.id).first()
+        print("fault object = ", end="")
+        print(fault)
+        print(fault.id)
         
+        # Determine the fault id and description(fault.name)
+        if message.new_value == 0:
+            fault_info = {"type":"fault", "active":False, "fault_id":message.id, "fault_desc":("FAULT CLEARED - " + fault.name)}
+        else:
+            fault_info = {"type":"fault", "active":True, "fault_id":fault.id, "fault_desc":fault.name}
+
+        print(fault_info)
+        # return
+
         """ TEMP """
         
 
@@ -59,8 +102,7 @@ class HistoryBroker:
             print("current queue size: " + str(self.central_node_data_queue.qsize()), end=" ")
             print("Message ", message.type, message.id, message.old_value, message.new_value, message.aux)
            
-            # TEMP - uncomment the decode_message
-            #self.decode_message(message)
+            self.decode_message(message)
 
     
     def connect_conf_db(self):
@@ -69,8 +111,9 @@ class HistoryBroker:
         """
         #TODO: add cli args later
         db_file = self.default_dbs["file_paths"]["config"] + "/" + self.default_dbs["file_names"]["config"]
+        print(db_file)
         try:
-            self.conf_conn = MPSConfig()
+            self.conf_conn = MPSConfig(db_file)
         except Exception as e:
             print(e)
             self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))
@@ -91,6 +134,7 @@ class HistoryBroker:
             data = self.process_analog(message)
         else:
             self.logger.log("DATA ERROR: Bad Message Type", message.to_string())
+        print(data)
 
         # TODO - Send the data to the Kubernetes infrastructure
         # self.send_data(data, listeners)
@@ -108,14 +152,18 @@ class HistoryBroker:
 
         Params:
             message: [type(of message), id, old_value, new_value, aux(allowed_class)]
+        Output:
+            fault_info: ['type': 'fault', 'active': bool, 'fault_id': int, 'fault_desc': str,
+                        'old_state': str, 'new_state': str, 'beam_class': str, 'beam_destination': str]
         """
         try:      
             fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
             # Determine the fault id and description
             if message.new_value == 0:
-                fault_info = {"type":"fault", "active":False, "fid":message.id, "fdesc":("FAULT CLEARED - " + fault.description)}
+                fault_info = {"type":"fault", "active":False, "fault_id":message.id, "fault_desc":("FAULT CLEARED - " + fault.description)}
             else:
-                fault_info = {"type":"fault", "active":True, "fid":fault.id, "fdesc":fault.description}
+                fault_info = {"type":"fault", "active":True, "fault_id":fault.id, "fault_desc":fault.description}
+
 
             #Determine the new and old fault state names
             old_state = self.determine_device_from_fault(message.old_value)

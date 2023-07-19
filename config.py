@@ -7,7 +7,7 @@ db_info  = {
             "runtime":"/u1/lcls/physics/mps_manager"
         },
         "file_names":{
-            "config":"mps_config-2023-05-22-a.db",
+            "config":"test.db", #"mps_config-2023-05-22-a.db",
             "history":"mps_gun_history_7_12_23.db",
             "runtime":None
         },

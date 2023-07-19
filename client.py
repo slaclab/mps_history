@@ -68,7 +68,7 @@ def create_socket(host, env, conf_conn):
 
         # send in 1000 packets, and calculate the time it takes
         time_begin = time()
-        for i in range(125): # each iteration sends 8 packets so 125 * 8 = 1000 packets
+        for i in range(1): # each iteration sends 8 packets so 125 * 8 = 1000 packets
             for data in generate_test_data(env, conf_conn): # generates 8 sets of data
                 #print(data)
                 s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))

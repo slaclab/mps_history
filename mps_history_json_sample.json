@@ -1,0 +1,48 @@
+
+
+/* History Collection v1*/
+{
+    "id": 1,                // Primary Key
+    "type": "",             // history type - ex's: ['analog', 'bypass', 'fault', 'input']
+    "timestamp": "",        // Timestamp of fault event. Format to work with sqlite date/time functions: "YYYY-MM-DD HH:MM:SS.SSS - ex: '2023-7-11 04:25:21.52134'
+    "fault_id": 1,          // Fault id - ex's: [2, 4, 1]
+    "bypass_id": "",        // Bypass type - ex's: ['CLOSED_STATUS', 'BACT', 'OPEN_STATUS']
+    "integrator": 1,        // Auxillary data for bypass - ex's: [21, 6, 0]
+    "fault_desc": "",       // Description of fault - ex's: ['SOL1B LINAC Solenoid BACT Fault', 'Mech Shutter Fault'
+    "new_state": "",        // State transitioned to in fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
+    "old_state": "",        // State transitioned from fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
+    "beam_class": "",       // Beam class name - ex's: ['BC0', 'BC1', 'FULL']
+    "beam_destination": "", // Beam destination name - ex's: ['LINAC', 'SC_DIAG0', 'ALL']
+    "channel": "",          // Analog channel from device id - ex's: ['BACT', 'BPM', 'CHRG']
+    "device": "",           // Device name - ex's: ['Mech Shutter', 'TEMP:SOLN:GUNB:212', 'YAG01B:MOVR:GUNB:753']
+    "active": true          // Fault active boolean - ex's: [true, false]
+}
+
+/* History Collection v2*/
+{
+    "id": 1,                    // Primary Key
+    "type": "",                 // history type - ex's: ['analog', 'bypass', 'fault', 'input']
+    "timestamp": "",            // Timestamp of fault event. Format to work with sqlite date/time functions: "YYYY-MM-DD HH:MM:SS.SSS - ex: '2023-7-11 04:25:21.52134'
+    "old_state": "",            // State transitioned from fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
+    "new_state": "",            // State transitioned to in fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
+    "analog": {                 
+        "channel": "",          // Analog channel from device id - ex's: ['BACT', 'BPM', 'CHRG']
+        "device": "",           // Device name - ex's: ['Mech Shutter', 'TEMP:SOLN:GUNB:212', 'YAG01B:MOVR:GUNB:753']
+    },
+    "bypass": {
+        "bypass_id": "",        // Bypass type - ex's: ['CLOSED_STATUS', 'BACT', 'OPEN_STATUS']
+        "integrator": 1,        // Auxillary data for bypass - ex's: [21, 6, 0]
+    },
+    "fault": {
+        "fault_id": 1,          // Fault id - ex's: [2, 4, 1]
+        "fault_desc": "",       // Description of fault - ex's: ['SOL1B LINAC Solenoid BACT Fault', 'Mech Shutter Fault'
+        "beam_class": "",       // Beam class name - ex's: ['BC0', 'BC1', 'FULL']
+        "beam_destination": "", // Beam destination name - ex's: ['LINAC', 'SC_DIAG0', 'ALL']
+        "active": true,         // Fault active boolean - ex's: [true, false]
+    },
+    "input": {
+        "channel": "",          // Analog channel from device id - ex's: ['BACT', 'BPM', 'CHRG']
+        "device": ""            // Device name - ex's: ['Mech Shutter', 'TEMP:SOLN:GUNB:212' 'YAG01B:MOVR:GUNB:753']
+    }
+}
+

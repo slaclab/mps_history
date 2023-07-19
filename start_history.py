@@ -33,7 +33,7 @@ def main():
     """ Begin Multi-Processes """
     central_node_data_queue = Queue() # Holds the data to be processed by workers
     # start the workers
-    num_workers = 5 # adjust the number if needed, but keep it < cpu cores available (16 cores is current hardware)
+    num_workers = 1 # adjust the number if needed, but keep it < cpu cores available (16 cores is current hardware)
     for i in range(num_workers):
         worker_proc = Process(target=worker, args=(central_node_data_queue, dev,))
         worker_proc.start()
