@@ -66,27 +66,34 @@ class HistoryBroker:
         self.connect_conf_db()
 
         # """ TEMP """
-        # do some random query to the conf_db to see if it actually connected
-        message = Message(1, 472, 6, 6, 14762)    
-        #fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==message.id).first()
-        query_fault = select(models.fault.Fault).where(models.fault.Fault.id==message.id) # you have to do 'fault.Fault' because there is 2 classes defined in fault.py
-        print(query_fault)
-        test = self.conf_conn.session.execute(query_fault)
-        print(test)
+        message = Message(2, 378, 0, 0, 17)  
 
-        fault = self.conf_conn.session.query(models.fault.Fault).filter(models.fault.Fault.id==message.id).first()
-        print("fault object = ", end="")
-        print(fault)
-        print(fault.id)
+        """ <<<<< Once finished - Place this query block into process_input() <<<<< """
+        try:
+            device_input = self.conf_conn.session.query(models.DeviceInput).filter(models.DeviceInput.id==message.id).first()
+            channel = self.conf_conn.session.query(models.DigitalChannel).filter(models.DigitalChannel.id==device_input.channel_id).first()   
+            digital_device = self.conf_conn.session.query(models.DigitalDevice).filter(models.DigitalDevice.id==device_input.digital_device_id).first()
+            
+            device = self.conf_conn.session.query(models.Device).filter(models.Device.id==digital_device.id).first()
+
+            if None in [device_input, device, channel]:
+                print([device_input, device, channel])
+                raise
+        except:
+            self.logger.log("SESSION ERROR: Add Device Input ", message.to_string())
+            return
+        old_name = channel.z_name
+        new_name = channel.z_name
+        if (message.old_value > 0):
+            old_name = channel.o_name
+        if (message.new_value > 0):
+            new_name = channel.o_name
+
+        input_info = {"type":"input", "new_state":new_name, "old_state":old_name, "channel":channel.name, "device":digital_device.name}
+        return input_info
         
-        # Determine the fault id and description(fault.name)
-        if message.new_value == 0:
-            fault_info = {"type":"fault", "active":False, "fault_id":message.id, "fault_desc":("FAULT CLEARED - " + fault.name)}
-        else:
-            fault_info = {"type":"fault", "active":True, "fault_id":fault.id, "fault_desc":fault.name}
+        """ >>>>> Once finished - Place this query block into process_input() >>>>> """
 
-        print(fault_info)
-        # return
 
         """ TEMP """
         
@@ -151,31 +158,43 @@ class HistoryBroker:
         Adds in the fault description, "inactive"/"active" for the state changes, and the device state name
 
         Params:
-            message: [type(of message), id, old_value, new_value, aux(allowed_class)]
+            message: [type(of message), id, old_value, new_value, aux(mitigation_id)]
         Output:
             fault_info: ['type': 'fault', 'active': bool, 'fault_id': int, 'fault_desc': str,
                         'old_state': str, 'new_state': str, 'beam_class': str, 'beam_destination': str]
         """
-        try:      
-            fault = self.conf_conn.session.query(models.Fault).filter(models.Fault.id==message.id).first()
-            # Determine the fault id and description
+        try:   
+            fault = self.conf_conn.session.query(models.Fault).\
+            filter(models.Fault.id==message.id).first()
+
+            # Determine the fault id and description(fault.name)
             if message.new_value == 0:
-                fault_info = {"type":"fault", "active":False, "fault_id":message.id, "fault_desc":("FAULT CLEARED - " + fault.description)}
+                fault_info = {"type":"fault", "active":False, "fault_id":message.id, "fault_desc":("FAULT CLEARED - " + fault.name)}
             else:
-                fault_info = {"type":"fault", "active":True, "fault_id":fault.id, "fault_desc":fault.description}
+                fault_info = {"type":"fault", "active":True, "fault_id":fault.id, "fault_desc":fault.name}
 
+            # Determine the new and old fault state names
+            old_state = self.get_fault_state_from_fault(message.old_value)
+            new_state = self.get_fault_state_from_fault(message.new_value)
 
-            #Determine the new and old fault state names
-            old_state = self.determine_device_from_fault(message.old_value)
-            new_state = self.determine_device_from_fault(message.new_value)
-
-            # Using the allowed class(aux) determine the beam class and destination
             if message.aux > 0:
-                allowed_class = self.conf_conn.session.query(models.AllowedClass).filter(models.AllowedClass.id==message.aux).first()
-                beam_dest = self.conf_conn.session.query(models.BeamDestination).filter(models.BeamDestination.id==allowed_class.beam_destination_id).first().name
-                beam_class = self.conf_conn.session.query(models.BeamClass).filter(models.BeamClass.id==allowed_class.beam_class_id).first().name
+                # aux value is the id from association_mitigation, which needs to join with mitigation, which needs to join with beam_dest and beam_class
+                mitigation_id = self.conf_conn.session.query(models.fault_state.association_table)\
+                                .filter(models.fault_state.association_table.c.id==message.aux)\
+                                .first().mitigation_id
+                beam_dest_id = self.conf_conn.session.query(models.Mitigation)\
+                                .filter(models.Mitigation.id==mitigation_id)\
+                                .first().beam_destination_id
+                beam_class_id = self.conf_conn.session.query(models.Mitigation)\
+                                .filter(models.Mitigation.id==mitigation_id)\
+                                .first().beam_class_id
+                beam_dest = self.conf_conn.session.query(models.BeamDestination)\
+                    .filter(models.BeamDestination.id==beam_dest_id)\
+                    .first().name
+                beam_class = self.conf_conn.session.query(models.BeamClass)\
+                    .filter(models.BeamClass.id==beam_class_id)\
+                    .first().name
             else:
-                allowed_class = "GOOD"
                 beam_dest = "ALL"
                 beam_class = "FULL"
             if None in [beam_dest, beam_class, old_state, new_state]:
@@ -183,12 +202,10 @@ class HistoryBroker:
                 raise
             f_info = {"old_state":old_state, "new_state":new_state, "beam_class":beam_class, "beam_destination":beam_dest}
             fault_info.update(f_info)
-        except Exception as e:
+        except:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
-            print(traceback.format_exc())
             return
         return fault_info
-
 
     def process_analog(self, message):
         """
@@ -210,7 +227,6 @@ class HistoryBroker:
             old_value, new_value = hex(message.old_value), hex(message.new_value)
         except:
             self.logger.log("SESSION ERROR: Add Analog ", message.to_string())
-            print(traceback.format_exc())
             return
         ana_info = {"type":"analog", "channel":channel.name, "device":device.name, "old_state":old_value, "new_state":new_value}
         return ana_info
@@ -222,26 +238,23 @@ class HistoryBroker:
         
         Params:
             message: [type(of message), id, oldvalue, newvalue, aux(digital vs analog)]        
+        Output:
+            bypass_info: ['type': 'bypass', 'channel': str, 'old_state': str, 'new_state': str, 'integrator': int]
         """
-        # Determine active/expiration status
-        old_name, new_name = "active", "active"
-        if message.old_value == 0: old_name = "expired"
-        if message.new_value == 0: new_name = "expired"
+       # Determine active/expiration status
+        old_state, new_state = "active", "active"
+        if message.old_value == 0: old_state = "expired"
+        if message.new_value == 0: new_state = "expired"
         try:
-            # Device is digital
-            if message.aux > 31:
-                device_input = self.conf_conn.session.query(models.DeviceInput).filter(models.DeviceInput.id==message.id).first()
-                channel = self.conf_conn.session.query(models.DigitalChannel).filter(models.DigitalChannel.id==device_input.channel_id).first()
-            # Device is analog
-            else:
-                analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==message.id).first()
-                channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
-            if not channel:
-                raise
+            channel_id = self.conf_conn.session.query(models.FaultInput).\
+                        filter(models.FaultInput.id==message.id).first().channel_id
+            channel_name = self.conf_conn.session.query(models.Channel).\
+                        filter(models.Channel.id==channel_id).first().name
         except:
             self.logger.log("SESSION ERROR: Add Bypass ", message.to_string())
             return
-        bypass_info = {"type":"bypass", "channel":channel.name, "new_state":new_name, "old_state":old_name, "integrator":message.aux}
+        # channel is the same as bypass_id in this situation
+        bypass_info = {"type":"bypass", "channel":channel_name, "old_state":old_state, "new_state":new_state, "integrator":message.aux}
         return bypass_info
 
     def process_input(self, message):
@@ -275,6 +288,16 @@ class HistoryBroker:
         input_info = {"type":"input", "new_state":new_name, "old_state":old_name, "channel":channel.name, "device":digital_device.name}
         return input_info
 
+    def get_fault_state_from_fault(self, fstate_id):
+        """
+        Returns the device state based off of the fault state id
+        """
+        if fstate_id == 0:
+            return "None"
+        fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==fstate_id).first()
+        return fault_state.name
+    
+    # TODO - Delete when done testing
     def determine_device_from_fault(self, fstate_id):
         """
         Returns the device state based off of the fault state id
@@ -284,3 +307,4 @@ class HistoryBroker:
         fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==fstate_id).first()
         device_state = self.conf_conn.session.query(models.DeviceState).filter(models.DeviceState.id==fault_state.device_state_id).first()
         return device_state.name
+
