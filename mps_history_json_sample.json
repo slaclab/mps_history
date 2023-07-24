@@ -1,49 +1,61 @@
-
-
-/* History Collection v1*/
+/* History Collection v4, added description to bypass*/
+// for each sub-document, the fields under its type is all you need. Ex: if type is fault, then there is no need for 'bypass' and 'channel' info.
 {
-    "id": 1,                // Primary Key
-    "type": "",             // history type - ex's: ['analog', 'bypass', 'fault', 'input']
-    "timestamp": "",        // Timestamp of fault event. Format to work with sqlite date/time functions: "YYYY-MM-DD HH:MM:SS.SSS - ex: '2023-7-11 04:25:21.52134'
-    "fault_id": 1,          // Fault id - ex's: [2, 4, 1]
-    "bypass_id": "",        // Bypass type - ex's: ['CLOSED_STATUS', 'BACT', 'OPEN_STATUS']
-    "integrator": 1,        // Auxillary data for bypass - ex's: [21, 6, 0]
-    "fault_desc": "",       // Description of fault - ex's: ['SOL1B LINAC Solenoid BACT Fault', 'Mech Shutter Fault'
-    "new_state": "",        // State transitioned to in fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
-    "old_state": "",        // State transitioned from fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
-    "beam_class": "",       // Beam class name - ex's: ['BC0', 'BC1', 'FULL']
-    "beam_destination": "", // Beam destination name - ex's: ['LINAC', 'SC_DIAG0', 'ALL']
-    "channel": "",          // Analog channel from device id - ex's: ['BACT', 'BPM', 'CHRG']
-    "device": "",           // Device name - ex's: ['Mech Shutter', 'TEMP:SOLN:GUNB:212', 'YAG01B:MOVR:GUNB:753']
-    "active": true          // Fault active boolean - ex's: [true, false]
+    "id": 1,                    // Primary Key of json object 
+    "type": "",                 // history type - ex's: ['channel', 'bypass', 'fault']
+    "timestamp": "",            // Timestamp of fault event. Format to work with sqlite date/time functions: "YYYY-MM-DD HH:MM:SS.SSS - ex: '2023-7-11 04:25:21.52134'
+    "old_state": "",            // State transitioned from fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
+    "new_state": "",            // State transitioned to in fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
+    "channel": {        
+        "number": 1,            // Channel number - ex's: [2, 32, 10]
+        "name": "",             // Channel name - ex's: ['SOLN:GUNB:212:TEMP_PERMIT', 'BPMS:L2B:1283:X', 'BPMS:BPN28:200:X']
+        "card_number": 1,       // Application Card number - ex's: [1, 5, 104]
+        "crate_loc": ""         // Crate location - ex's: ['L2KA00-0517', 'B921-1524']
+    },
+    "bypass": {
+        "expiration": "",       // Expiration timestamp - "YYYY-MM-DD HH:MM:SS.SSS - ex: '2023-7-11 04:25:21.52134', central node will send time in (seconds) and history server does expiration = timestamp(exp_time(central_node) + cur_time)
+        "description": ""       // Description of fault - ex's: ['SOL1B LINAC Solenoid BACT Fault', 'Mech Shutter Fault'      
+    },
+    "fault": {
+        "id": 1,                // Fault id - ex's: [2, 4, 1]
+        "description": "",      // Description of fault - ex's: ['SOL1B LINAC Solenoid BACT Fault', 'Mech Shutter Fault'
+        "beams": [               // List of beam_classes and beam_destinations, amount is >= 1 beam objects
+            {
+                "class": "",       // Beam class name - ex's: ['BC0', 'BC1', 'FULL']
+                "destination": ""  // Beam destination name - ex's: ['LINAC', 'SC_DIAG0', 'ALL']
+            }
+        ],
+        "active": true          // Fault active boolean - ex's: [true, false]
+    }
 }
 
-/* History Collection v2*/
-TODO - Make the changes formally, then send to claudio new struct
+/* History Collection v3.1 - changed channel name and number to list*/
 {
-    "id": 1,                    // Primary Key
+    "id": 1,                    // Primary Key of json object 
     "type": "",                 // history type - ex's: ['analog', 'bypass', 'fault', 'input']
     "timestamp": "",            // Timestamp of fault event. Format to work with sqlite date/time functions: "YYYY-MM-DD HH:MM:SS.SSS - ex: '2023-7-11 04:25:21.52134'
     "old_state": "",            // State transitioned from fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
     "new_state": "",            // State transitioned to in fault event - ex's: ['OPEN', 'active', 'expired', '0x1']
-    "channel": {
-        "channel_num"
-        "name": ,
-        "card_num"
-        "crate_loc"
-    },
+    "card_number": 1,           // Application Card number - ex's: [1, 5, 104]
+    "crate_loc": "",            // Crate location - ex's: ['L2KA00-0517', 'B921-1524']
+    "channels": [
+        {
+        "number": "",            // Channel number - ex's: [2, 32, 10]
+        "name": ""             // Channel name - ex's: ['SOLN:GUNB:212:TEMP_PERMIT', 'BPMS:L2B:1283:X', 'BPMS:BPN28:200:X']
+        }
+    ],
     "bypass": {
-        "bypass_id": "",        // Bypass type - ex's: ['CLOSED_STATUS', 'BACT', 'OPEN_STATUS']
-        "expiration"              // sent from central node (in seconds), and history server will convert to timestamp from current time (close enough)
-        //"integrator": 1,        // Auxillary data for bypass - ex's: [21, 6, 0]
+        "expiration": ""        // Expiration timestamp - "YYYY-MM-DD HH:MM:SS.SSS - ex: '2023-7-11 04:25:21.52134' sent from central node (in seconds), and history server will convert to timestamp from current time (close enough)
     },
     "fault": {
-        "fault_id": 1,          // Fault id - ex's: [2, 4, 1]
-        "fault_desc": "",       // Description of fault - ex's: ['SOL1B LINAC Solenoid BACT Fault', 'Mech Shutter Fault'
-        // can make beam_class and beam_destination to 2 lists or, make into one field as dictionary key value
-        "beam_class": "",       // Beam class name - ex's: ['BC0', 'BC1', 'FULL']
-        "beam_destination": "", // Beam destination name - ex's: ['LINAC', 'SC_DIAG0', 'ALL']
-        "active": true,         // Fault active boolean - ex's: [true, false]
-    },
+        "id": 1,                // Fault id - ex's: [2, 4, 1]
+        "description": "",      // Description of fault - ex's: ['SOL1B LINAC Solenoid BACT Fault', 'Mech Shutter Fault'
+        "beams": [               // List of beam_classes and beam_destinations, amount is >= 1 beam objects
+            {
+                "class": "",       // Beam class name - ex's: ['BC0', 'BC1', 'FULL']
+                "destination": ""  // Beam destination name - ex's: ['LINAC', 'SC_DIAG0', 'ALL']
+            }
+        ],
+        "active": true          // Fault active boolean - ex's: [true, false]
+    }
 }
-

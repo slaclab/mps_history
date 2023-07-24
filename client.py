@@ -66,7 +66,16 @@ def create_socket(host, env, conf_conn):
         print(port)
         print("connected to socket")
 
-        # send in 1000 packets, and calculate the time it takes
+        # send fault
+        data = [1, 140, 16, 3, 1063] # fault
+        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        data = [5, 220, 0, 0, 9]  # digital channel
+        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        data = [2, 378, 0, 10, 50]  # bypass
+        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        return """ TEMP"""
+
+        # send in 1000 packets, and calculate the time it takes - the generate_test_data doesnt work for new config db
         time_begin = time()
         for i in range(1): # each iteration sends 8 packets so 125 * 8 = 1000 packets
             for data in generate_test_data(env, conf_conn): # generates 8 sets of data

@@ -37,7 +37,7 @@ def main():
     for i in range(num_workers):
         worker_proc = Process(target=worker, args=(central_node_data_queue, dev,))
         worker_proc.start()
-
+    #return """ TEMP """
     # start the listener
     listener_proc = Process(target=listener, args=(central_node_data_queue, args,))
     listener_proc.start()
@@ -75,8 +75,8 @@ def worker(central_node_data_queue, dev):
     """ 
     print("Worker process started")
     hist = HistoryBroker.HistoryBroker(central_node_data_queue, dev)
-    while True:
-        hist.process_queue()
+    hist.process_queue()
+
     return
 
 if __name__ == "__main__":
