@@ -14,7 +14,7 @@ from ctypes import *
 
 import socket, random, pprint, struct
 """ TEMP """
-from time import time
+import time
 """ TEMP """
 
 def main():
@@ -73,6 +73,16 @@ def create_socket(host, env, conf_conn):
         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
         data = [2, 378, 0, 10, 50]  # bypass
         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+
+    
+        # send same data 100 times over
+        data_set = [[1, 140, 16, 3, 1063], [5, 220, 0, 0, 9], [2, 378, 0, 10, 50]]
+        for i in range(100): # 300 packets send
+            for data in data_set:
+                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+                time.sleep(0.0005) # .5 ms between each send
+
+
         return """ TEMP"""
 
         # send in 1000 packets, and calculate the time it takes - the generate_test_data doesnt work for new config db

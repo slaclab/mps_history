@@ -36,6 +36,7 @@ def main():
     num_workers = 1 # adjust the number if needed, but keep it < cpu cores available (16 cores is current hardware)
     for i in range(num_workers):
         worker_proc = Process(target=worker, args=(central_node_data_queue, dev,))
+        worker_proc.daemon = True
         worker_proc.start()
     #return """ TEMP """
     # start the listener

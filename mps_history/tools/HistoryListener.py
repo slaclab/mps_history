@@ -56,7 +56,7 @@ class HistoryListener:
         """
         Endless function that waits for data to be sent over the socket
         """
-        print("Current receive count: " + str(self.receive_count))
+        print("Current receive count: " + str(self.receive_count)) # TEMP
         while True:
             self.receive_update()
 
@@ -66,11 +66,14 @@ class HistoryListener:
         """
         message=Message(0, 0, 0, 0, 0)
         data, ipAddr = self.sock.recvfrom(sizeof(Message))
-        self.receive_count += 1 # TEMP
-        print("Received\n", data)
         message = Message.from_buffer_copy(data)
-        print("Message\n", message.type, message.id, message.old_value, message.new_value, message.aux)
-        print(self.receive_count)
+
+        """ TEMP """
+        self.receive_count += 1 
+        print("Received\n", data) 
+        print("Message ", message.type, message.id, message.old_value, message.new_value, message.aux) 
+        print(self.receive_count) 
+        """ TEMP """
 
         self.central_node_data_queue.put(message)
         return

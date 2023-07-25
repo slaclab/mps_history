@@ -15,36 +15,6 @@ from mps_database.mps_config import MPSConfig, models
 from mps_history.tools import logger
 from sqlalchemy import select
 
-""" TEMP """
-import struct
-
-import inspect
-print(inspect.getfile(MPSConfig))
-print(inspect.getfile(models))
-
-class Message(Structure):
-    """
-    Class responsible for defining messages coming from the Central Node IOCchart
-    5 unsigned ints - 20 bytes of data
-
-    type: 1-6 depending on the type of data to be processed
-    id: the fault.id - This may be useless to send, as the old/new_value can grab the fault.id as it is a FK in fault_state table, instead use it to confirm it is matching with fault_state table.
-    old_value, new_value: fault_state.id for old and new
-    aux: auxillary data that may or may not be included, depending on type -  
-        Expected data specifics will be specified in the processing functions
-    """
-    _fields_ = [
-        ("type", c_uint),
-        ("id", c_uint),
-        ("old_value", c_uint),
-        ("new_value", c_uint),
-        ("aux", c_uint),
-        ]
-    
-    def to_string(self):
-        return str(self.type) + " " + str(self.id) + " " + str(self.old_value) + " " + str(self.new_value) + " " + str(self.aux) 
-""" TEMP """
-
 class HistoryBroker:
     """
     Processes the data from central_nodes by querying the config DB, then sending it to 
@@ -83,7 +53,6 @@ class HistoryBroker:
         """
         Creates a interactable connection to the configuration database
         """
-        #TODO: add cli args later
         db_file = self.default_dbs["file_paths"]["config"] + "/" + self.default_dbs["file_names"]["config"]
         print(db_file)
         try:
@@ -113,7 +82,21 @@ class HistoryBroker:
         return
 
     def send_data(self, data):
-        # TODO - Make tcp/ip server so Claudio mps importer middleware can connect to it
+        # TODO - work on this later when claudio starts again next week
+        # 0) make this a class of its own like HistorySender maybe. or just leave it here
+        # 1) See how you can send/pack the data - you might want to use packing in multi-processing since it takes time
+        # take a look at libraries that can do packing like https://protobuf.dev/ or https://flatbuffers.dev/
+        # 2) Make tcp/ip server so Claudio mps importer middleware can connect to it
+        # Consider using socketserver for the tcp connections, or just plain old socket for more control
+        # then consider if each worker process will listen and send data on one port, or if you just want 
+        # each worker process add it to processed_item_queue, then have another process be a 'sender'
+        # the 'sender' is like the publisher in pub-sub terminology. you will have sender broadcast the messages
+        # to client(s), in their mps importer, they may have multiple clients because kafka infrastructure
+        # you will be the source ip/port, and only 1 is needed. But you have multiple clients (dest ips/ports)
+        # consider multithreading if have 'sender' process, because there could be waiting on the network.
+        # ask if you are sending the same data to all clients
+        # They are also considering websockets
+
         return
 
     def process_channel(self, message):
@@ -242,73 +225,6 @@ class HistoryBroker:
         fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==fstate_id).first()
         return fault_state.name
     
-    # TODO - Delete when done testing
-    def determine_device_from_fault(self, fstate_id):
-        """
-        Returns the device state based off of the fault state id
-        """
-        if fstate_id == 0:
-            return "None"
-        fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==fstate_id).first()
-        device_state = self.conf_conn.session.query(models.DeviceState).filter(models.DeviceState.id==fault_state.device_state_id).first()
-        return device_state.name
-    
-    # TODO - Delete when done testing
-    def process_input(self, message):
-        """
-        Adds a device input into the history database
-        Adds in digital channel name, the digital device name, and the names of the new and old digital channels based on their 0/1 values 
-        
-        Params:
-            message: [type(of message), id, oldvalue, newvalue, aux(allowed_class)]        
-        """
-        try:
-            device_input = self.conf_conn.session.query(models.DeviceInput).filter(models.DeviceInput.id==message.id).first()
-            channel = self.conf_conn.session.query(models.DigitalChannel).filter(models.DigitalChannel.id==device_input.channel_id).first()   
-            digital_device = self.conf_conn.session.query(models.DigitalDevice).filter(models.DigitalDevice.id==device_input.digital_device_id).first()
-            
-            device = self.conf_conn.session.query(models.Device).filter(models.Device.id==digital_device.id).first()
-
-            if None in [device_input, device, channel]:
-                print([device_input, device, channel])
-                raise
-        except:
-            self.logger.log("SESSION ERROR: Add Device Input ", message.to_string())
-            return
-        old_name = channel.z_name
-        new_name = channel.z_name
-        if (message.old_value > 0):
-            old_name = channel.o_name
-        if (message.new_value > 0):
-            new_name = channel.o_name
-
-        input_info = {"type":"input", "new_state":new_name, "old_state":old_name, "channel":channel.name, "device":digital_device.name}
-        return input_info
-    
-    # TODO - Delete when done testing
-    def process_analog(self, message):
-        """
-        Adds an analog device update into the history database
-        Adds in the device channel name, and hex values of the new and old state changes
-        
-        Params:
-            message: [type(of message), id, old_value, new_value, aux]
-        """
-        try:
-            analog_device = self.conf_conn.session.query(models.AnalogDevice).filter(models.AnalogDevice.id==message.id).first()
-            channel = self.conf_conn.session.query(models.AnalogChannel).filter(models.AnalogChannel.id==analog_device.channel_id).first()
-            device = self.conf_conn.session.query(models.Device).filter(models.Device.id==analog_device.id).first()
-
-            if None in [device, channel]:
-                print([device, channel])
-                raise            
-            # This will fail if the values are strings, not ints. TODO: see how it sends info
-            old_value, new_value = hex(message.old_value), hex(message.new_value)
-        except:
-            self.logger.log("SESSION ERROR: Add Analog ", message.to_string())
-            return
-        ana_info = {"type":"analog", "channel":channel.name, "device":device.name, "old_state":old_value, "new_state":new_value}
-        return ana_info
     
     
 

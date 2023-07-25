@@ -1,4 +1,33 @@
 
+""" TEMP """
+import struct
+
+import inspect
+print(inspect.getfile(MPSConfig))
+print(inspect.getfile(models))
+
+class Message(Structure):
+    """
+    Class responsible for defining messages coming from the Central Node IOCchart
+    5 unsigned ints - 20 bytes of data
+
+    type: 1-6 depending on the type of data to be processed
+    id: the fault.id - This may be useless to send, as the old/new_value can grab the fault.id as it is a FK in fault_state table, instead use it to confirm it is matching with fault_state table.
+    old_value, new_value: fault_state.id for old and new
+    aux: auxillary data that may or may not be included, depending on type -  
+        Expected data specifics will be specified in the processing functions
+    """
+    _fields_ = [
+        ("type", c_uint),
+        ("id", c_uint),
+        ("old_value", c_uint),
+        ("new_value", c_uint),
+        ("aux", c_uint),
+        ]
+    
+    def to_string(self):
+        return str(self.type) + " " + str(self.id) + " " + str(self.old_value) + " " + str(self.new_value) + " " + str(self.aux) 
+""" TEMP """
 
 # Formalize this later - or just copy and paste this piece into init of historyBroker
 def test_channel():
