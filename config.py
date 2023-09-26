@@ -13,6 +13,46 @@ db_info  = {
         },
         "logger":{
             "log_directory":"/u/cd/pnispero/mps/mps_history/test_logs/"
+        },
+        "kafka":{
+            "producer_config": {
+                "bootstrap_server_ip": "172.24.5.197:9094",
+                "username": "mps-data-injestion-publisher",
+                "password": "H9MD7vxf9ABPDsKTyxvOtTKL14hCSU8R",
+                "security_protocol": "SASL_PLAINTEXT",
+                "sasl_mechanism": "SCRAM-SHA-512" 
+            },
+            "topic": "mps-data-injestion",
+            "history_schema" : """
+                                {
+                                    "id": 1,
+                                    "type": "",
+                                    "timestamp": "",
+                                    "old_state": "",
+                                    "new_state": "",
+                                    "channel": {        
+                                        "number": 1,
+                                        "name": "",
+                                        "card_number": 1,
+                                        "crate_loc": ""
+                                    },
+                                    "bypass": {
+                                        "expiration": "",
+                                        "description": ""
+                                    },
+                                    "fault": {
+                                        "id": 1,
+                                        "description": "",
+                                        "beams": [
+                                            {
+                                                "class": "",
+                                                "destination": ""
+                                            }
+                                        ],
+                                        "active": true
+                                    }
+                                }
+                                """
         }
         # lking dev paths
         # "file_paths":{
@@ -73,6 +113,16 @@ db_info  = {
         },
         "logger":{
             "log_directory":"/u1/lcls/tools/mpsHistoryServer/mps_history_server2/logs"
+        },
+        "kafka":{
+            "producer_config": {
+                "bootstrap_server_ip": "172.24.5.197:9094",
+                "username": "mps-data-injestion-publisher",
+                "password": "H9MD7vxf9ABPDsKTyxvOtTKL14hCSU8R",
+                "security_protocol": "SASL_SSL",
+                "sasl_mechanism": "PLAIN"
+            },
+            "topic": "mps-data-injestion"
         }
     },
 

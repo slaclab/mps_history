@@ -86,6 +86,7 @@ def create_socket(host, env, conf_conn):
         return """ TEMP"""
 
         # send in 1000 packets, and calculate the time it takes - the generate_test_data doesnt work for new config db
+        # TODO - Remake the generate_test_data for new config DB
         time_begin = time()
         for i in range(1): # each iteration sends 8 packets so 125 * 8 = 1000 packets
             for data in generate_test_data(env, conf_conn): # generates 8 sets of data

@@ -15,10 +15,16 @@ from mps_database.mps_config import MPSConfig, models
 from mps_history.tools import logger
 from sqlalchemy import select
 
+#from confluent_kafka import Producer # https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/index.html
+#from confluent_kafka.schema_registry import SchemaRegistryClient
+#from confluent_kafka.schema_registry.json_schema import JSONSerializer
+
+import json
+
 class HistoryBroker:
     """
     Processes the data from central_nodes by querying the config DB, then sending it to 
-    kubernetes infrastructure -> history DB
+    Kafka -> kubernetes infrastructure -> history DB
     """
     def __init__(self, central_node_data_queue, dev):
         self.central_node_data_queue = central_node_data_queue
@@ -32,7 +38,46 @@ class HistoryBroker:
         else:
             self.default_dbs = config.db_info["test"]
 
+        #self.connect_kafka()
         self.connect_conf_db()
+
+    def connect_kafka(self):
+        """
+        Creates an interactable connection to Kafka through a boostrap_server
+        """
+        
+        self.kafka_ip = self.default_dbs["kafka"]["bootstrap_server_ip"]
+        self.kafka_topic = self.default_dbs["kafka"]["topic"]
+        self.kafka_producer_config = self.default_dbs["kafka"]["producer_config"]
+        self.history_schema = self.default_dbs["kafka"]["history_schema"]
+
+        producer_config = {self.kafka_producer_config}
+
+        self.kafka_producer = Producer(producer_config)
+
+        # Send initial message to see if connection is valid
+        self.kafka_producer.produce(self.kafka_topic, value="value", on_delivery=self.delivery_report)
+        self.kafka_producer.poll(1) # wait 1 second for event if failed
+
+        # TODO - send in an initial dummy data to test connection
+        # First try out each field as a false item. (to see what the error message is)
+        return
+    
+    def delivery_report(self, err, msg):
+        """
+        Kafka delivery handler. Triggered by poll() or flush()
+        Called on success or fail of message delivery
+        Params: (These params are built into on_delivery callback)
+            err (KafkaError): The error that occurred on None on success.
+            msg (Message): The message that was produced or failed.
+        """
+        if err is not None:
+            print("Failed to deliver message: %s: %s" % (str(msg), str(err)))
+            self.logger.log("KAFKA ERROR: Unable to Connect to Kafka Server", str(self.kafka_ip))
+            exit()
+        else: # TODO: may omit this else if messages spams console
+            print("Message produced: %s" % (str(msg)))
+    
 
     def process_queue(self):
         """
@@ -78,24 +123,22 @@ class HistoryBroker:
         print(data)
 
         # Send the data to the Kubernetes infrastructure
-        self.send_data(data)
+        self.send_data(data) # TODO: Temp commented out
         return
 
     def send_data(self, data):
-        # TODO - work on this later when claudio starts again next week
-        # 0) make this a class of its own like HistorySender maybe. or just leave it here
+        """
+        Serializes data, then sends to Kafka topic
+        """
         # 1) See how you can send/pack the data - you might want to use packing in multi-processing since it takes time
         # take a look at libraries that can do packing like https://protobuf.dev/ or https://flatbuffers.dev/
-        # 2) Make tcp/ip server so Claudio mps importer middleware can connect to it
-        # Consider using socketserver for the tcp connections, or just plain old socket for more control
-        # then consider if each worker process will listen and send data on one port, or if you just want 
-        # each worker process add it to processed_item_queue, then have another process be a 'sender'
-        # the 'sender' is like the publisher in pub-sub terminology. you will have sender broadcast the messages
-        # to client(s), in their mps importer, they may have multiple clients because kafka infrastructure
-        # you will be the source ip/port, and only 1 is needed. But you have multiple clients (dest ips/ports)
-        # consider multithreading if have 'sender' process, because there could be waiting on the network.
-        # ask if you are sending the same data to all clients
-        # They are also considering websockets
+        # TODO: Keep it as JSON to send, although its a bit bulky, its quick to process since the data is already a dict
+            # May use a different serializing method if too bulky. Maybe pickle. But if after consumed on Claudio end
+            # the data is converted to BSON and is smaller, then it should not matter. 
+        record_data = json.dumps(data).encode('utf-8')
+        print(str(sys.getsizeof(record_data))) # TEMP
+        self.kafka_producer.produce(self.kafka_topic, value=record_data, on_delivery=self.delivery_report)
+        self.kafka_producer.poll() # Trigger delivery report
 
         return
 
@@ -105,7 +148,7 @@ class HistoryBroker:
         Params:
             message: [type(of message), id, old_value, new_value, aux]
         Output:
-            fault_info: ["type":"channel", "timestamp": str, "old_state": str, "new_state": str, "channel_number": int,
+            channel_info: ["type":"channel", "timestamp": str, "old_state": str, "new_state": str, "channel_number": int,
               "channel_name": str,"card_number": int, "crate_loc": str]
         """
         try:
@@ -138,8 +181,8 @@ class HistoryBroker:
             self.logger.log("SESSION ERROR: Add Channel ", message.to_string())
             print(traceback.format_exc())
             return
-        channel_info = {"type":"channel", "timestamp": str(self.timestamp), "old_state":old_state, "new_state":new_state, "channel_number":channel.number, "channel_name":channel.name,\
-                     "card_number":app_card.number, "crate_loc":crate_loc}
+        channel_info = {"type":"channel", "timestamp": str(self.timestamp), "old_state":old_state, "new_state":new_state,\
+                         "channel": {"number":channel.number, "name":channel.name,"card_number":app_card.number, "crate_loc":crate_loc}}
         return channel_info
 
 
@@ -149,22 +192,22 @@ class HistoryBroker:
         Params:
             message: [type(of message), id, old_value, new_value, aux(mitigation_id)]
         Output:
-            fault_info: ['type': 'fault', 'active': bool, 'fault_id': int, 'fault_desc': str,
-                        'old_state': str, 'new_state': str, 'beam_class': str, 'beam_destination': str]
+            all_fault_info: ['type': 'fault', 'timestamp': str, 'old_state': str, 'new_state': str, 
+                         'fault': {'id': int, 'description': str, 'active': bool, 'beams' : ['class': str, 'destination': str]} ]
         """
         try:   
             fault = self.conf_conn.session.query(models.Fault)\
                     .filter(models.Fault.id==message.id).first()
-            # Determine if active, the fault id and description(fault.name)
-            fault_info = {"type":"fault", "timestamp": str(self.timestamp)}
-            if message.new_value == 0:
-                f_info = {"active":False, "fault_id":message.id, "fault_desc":("FAULT CLEARED - " + fault.name)}
-            else:
-                f_info = {"active":True, "fault_id":fault.id, "fault_desc":fault.name}
-            fault_info.update(f_info)
+            
             # Determine the new and old fault state names
             old_state = self.get_fault_state_from_fault(message.old_value)
             new_state = self.get_fault_state_from_fault(message.new_value)
+        
+            # Determine if active, the fault id and description(fault.name)
+            if message.new_value == 0:
+                f_info = {"id":message.id, "description":("FAULT CLEARED - " + fault.name), "active":False}
+            else:
+                f_info = {"id":fault.id, "description":fault.name, "active":True}
 
             # 1) using the fault_state.id from new_state, it has many mitigation_id
             # 2) each mitigation_id has only 1 beam_destination_id and 1 beam_class_id
@@ -185,14 +228,17 @@ class HistoryBroker:
                 beam_class = self.conf_conn.session.query(models.BeamClass.name)\
                             .filter(models.BeamClass.id==beam_ids.beam_class.id)\
                             .first()[0]
-                beams.append({beam_class, beam_dest})
-            f_info = {"old_state":old_state, "new_state":new_state, "beams": beams}
-            fault_info.update(f_info)
+                beams.append({"class": beam_class, "destination": beam_dest})
+            beam_info = {"beams": beams}
+            all_fault_info = {"type":"fault", "timestamp": str(self.timestamp), "old_state":old_state, "new_state":new_state, "fault": {}}
+            all_fault_info['fault'].update(f_info)
+            all_fault_info['fault'].update(beam_info)
 
         except Exception as e:
             self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
             print(traceback.format_exc())
-        return fault_info
+            return
+        return all_fault_info
 
     def process_bypass(self, message):
         """
@@ -205,6 +251,7 @@ class HistoryBroker:
         timestamp_secs = int(self.timestamp.strftime("%s"))
         expiration = datetime.fromtimestamp(message.aux + timestamp_secs).strftime("%Y-%m-%d %H:%M:%S.%f")
 
+        old_state = self.get_fault_state_from_fault(message.old_value)
         new_state = self.get_fault_state_from_fault(message.new_value)
         print(new_state)
         try:
@@ -213,7 +260,8 @@ class HistoryBroker:
         except:
             self.logger.log("SESSION ERROR: Add Bypass ", message.to_string())
             return
-        bypass_info = {"type":"bypass", "timestamp": str(self.timestamp), "new_state":new_state, "expiration":expiration, "description":fault_name}
+        bypass_info = {"type":"bypass", "timestamp": str(self.timestamp), "old_state":old_state, "new_state":new_state,
+                        "bypass" : {"expiration":expiration, "description":fault_name}}
         return bypass_info
 
     def get_fault_state_from_fault(self, fstate_id):
