@@ -16,7 +16,7 @@ db_info  = {
         },
         "kafka":{
             "producer_config": {
-                "bootstrap_server_ip": "172.24.5.197:9094",
+                "bootstrap.servers": "172.24.5.197:9094",
                 "username": "mps-data-injestion-publisher",
                 "password": "H9MD7vxf9ABPDsKTyxvOtTKL14hCSU8R",
                 "security_protocol": "SASL_PLAINTEXT",

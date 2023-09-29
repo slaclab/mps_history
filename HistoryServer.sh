@@ -16,8 +16,8 @@ fi
 if [ `hostname` == 'lcls-dev3' ] || [ `hostname` == 'lcls-dev1' ] || [ `hostname` == 'dev-rhel7' ]; then
   source $TOOLS/script/ENVS64.bash
   #eval "$(conda shell.bash hook)"
-  source $PACKAGE_TOP/anaconda/2020.11/etc/profile.d/conda.sh  
-  conda activate mps-environment
+  #source $PACKAGE_TOP/anaconda/2020.11/etc/profile.d/conda.sh  
+  #conda activate mps-environment
   echo "Conda environment activated: $CONDA_PREFIX"
 fi
 #if [`hostname` == 'lcls-dev1' ]; then

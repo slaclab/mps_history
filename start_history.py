@@ -32,18 +32,18 @@ def main():
 
     """ Begin Multi-Processes """
     central_node_data_queue = Queue() # Holds the data to be processed by workers
+    # start the listener
+    listener_proc = Process(name="listener", target=listener, args=(central_node_data_queue, args,))
+    listener_proc.start()
     # start the workers
     num_workers = 1 # adjust the number if needed, but keep it < cpu cores available (16 cores is current hardware)
     for i in range(num_workers):
-        worker_proc = Process(target=worker, args=(central_node_data_queue, dev,))
-        worker_proc.daemon = True
+        worker_name = "worker_" + str(i)
+        worker_proc = Process(name=worker_name, target=worker, args=(central_node_data_queue, dev,))
+        worker_proc.daemon = True # Ensures workers do not affect listener process
         worker_proc.start()
-    #return """ TEMP """
-    # start the listener
-    listener_proc = Process(target=listener, args=(central_node_data_queue, args,))
-    listener_proc.start()
 
-    # wait for listener process to finish
+    # main process - wait for listener process to finish
     # it doesnt actually finish, so this .join() ensures this server runs forever unless terminated
     listener_proc.join()
     return
@@ -67,7 +67,7 @@ def listener(central_node_data_queue, args):
 
 def worker(central_node_data_queue, dev):
     """
-    A process whose job is the take data from the central_node_data_queue, process the data,
+    A process whose job is to take data from the central_node_data_queue, process the data,
     then send it over to the kubernetes infrastructure to write to History DB. 
     
     Params:

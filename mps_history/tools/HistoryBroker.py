@@ -1,7 +1,6 @@
-import config, socket, sys, argparse, datetime, errno, traceback, os
+import config, sys, datetime, traceback
 from ctypes import *
 from datetime import datetime
-from time import time
 
 """ TEMP """
 # Forced config mps_database to point to the new_mpsdb 
@@ -11,14 +10,10 @@ sys.path.insert(1, '/u/cd/pnispero/mps/mps_database_new')
 """ TEMP """
 
 from mps_database.mps_config import MPSConfig, models
-#from mps_history.models import fault_history
 from mps_history.tools import logger
 from sqlalchemy import select
 
-#from confluent_kafka import Producer # https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/index.html
-#from confluent_kafka.schema_registry import SchemaRegistryClient
-#from confluent_kafka.schema_registry.json_schema import JSONSerializer
-
+from confluent_kafka import Producer
 import json
 
 class HistoryBroker:
@@ -38,26 +33,22 @@ class HistoryBroker:
         else:
             self.default_dbs = config.db_info["test"]
 
-        #self.connect_kafka()
+        self.connect_kafka()
         self.connect_conf_db()
 
     def connect_kafka(self):
         """
         Creates an interactable connection to Kafka through a boostrap_server
         """
-        
-        self.kafka_ip = self.default_dbs["kafka"]["bootstrap_server_ip"]
         self.kafka_topic = self.default_dbs["kafka"]["topic"]
         self.kafka_producer_config = self.default_dbs["kafka"]["producer_config"]
-        self.history_schema = self.default_dbs["kafka"]["history_schema"]
+        print(self.kafka_producer_config)
 
-        producer_config = {self.kafka_producer_config}
-
-        self.kafka_producer = Producer(producer_config)
+        self.kafka_producer = Producer(self.kafka_producer_config)
 
         # Send initial message to see if connection is valid
-        self.kafka_producer.produce(self.kafka_topic, value="value", on_delivery=self.delivery_report)
-        self.kafka_producer.poll(1) # wait 1 second for event if failed
+        #self.kafka_producer.produce(self.kafka_topic, value="test", on_delivery=self.delivery_report)
+        #self.kafka_producer.poll(1) # wait 1 second for event if failed
 
         # TODO - send in an initial dummy data to test connection
         # First try out each field as a false item. (to see what the error message is)
@@ -116,14 +107,14 @@ class HistoryBroker:
             data = self.process_fault(message)
         elif (message.type == 2): # BypassStateType
             data = self.process_bypass(message)
-        elif (message.type == 5): # ChannelType (DigitalChannel or AnalogChannel)
+        elif (message.type == 3 or message.type == 4): # ChannelType (DigitalChannel or AnalogChannel)
             data = self.process_channel(message)
         else:
             self.logger.log("DATA ERROR: Bad Message Type", message.to_string())
         print(data)
 
         # Send the data to the Kubernetes infrastructure
-        self.send_data(data) # TODO: Temp commented out
+        #self.send_data(data) 
         return
 
     def send_data(self, data):
@@ -136,7 +127,6 @@ class HistoryBroker:
             # May use a different serializing method if too bulky. Maybe pickle. But if after consumed on Claudio end
             # the data is converted to BSON and is smaller, then it should not matter. 
         record_data = json.dumps(data).encode('utf-8')
-        print(str(sys.getsizeof(record_data))) # TEMP
         self.kafka_producer.produce(self.kafka_topic, value=record_data, on_delivery=self.delivery_report)
         self.kafka_producer.poll() # Trigger delivery report
 
@@ -146,7 +136,7 @@ class HistoryBroker:
         """
         Processes a channel (analog or digital device)
         Params:
-            message: [type(of message), id, old_value, new_value, aux]
+            message: [type(of message), id, old_value, new_value]
         Output:
             channel_info: ["type":"channel", "timestamp": str, "old_state": str, "new_state": str, "channel_number": int,
               "channel_name": str,"card_number": int, "crate_loc": str]
@@ -244,14 +234,14 @@ class HistoryBroker:
         """
         Processes an analog or digital device bypass
         Params:
-            message: [type(of message), id, oldvalue, newvalue, aux(expiration time in secs)]        
+            message: [type(of message), id, newvalue, aux(expiration time in secs)]        
         Output:
             bypass_info: ['type': 'bypass', 'timestamp' str, 'new_state': str, 'expiration': str, 'description': str]
         """
         timestamp_secs = int(self.timestamp.strftime("%s"))
         expiration = datetime.fromtimestamp(message.aux + timestamp_secs).strftime("%Y-%m-%d %H:%M:%S.%f")
 
-        old_state = self.get_fault_state_from_fault(message.old_value)
+        # old_state not necessary
         new_state = self.get_fault_state_from_fault(message.new_value)
         print(new_state)
         try:
@@ -260,13 +250,13 @@ class HistoryBroker:
         except:
             self.logger.log("SESSION ERROR: Add Bypass ", message.to_string())
             return
-        bypass_info = {"type":"bypass", "timestamp": str(self.timestamp), "old_state":old_state, "new_state":new_state,
+        bypass_info = {"type":"bypass", "timestamp": str(self.timestamp), "new_state":new_state,
                         "bypass" : {"expiration":expiration, "description":fault_name}}
         return bypass_info
 
     def get_fault_state_from_fault(self, fstate_id):
         """
-        Returns the device state based off of the fault_state.id
+        Returns the fault state based off the fault_state.id
         """
         if fstate_id == 0:
             return "None"

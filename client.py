@@ -3,9 +3,6 @@ import sqlalchemy
 from mps_database import mps_config, models
 
 import config
-from mps_history.tools import HistorySession
-from mps_history.models import analog_history, bypass_history, input_history, fault_history
-from mps_database.models import Base
 
 from mps_database.mps_config import MPSConfig
 from sqlalchemy import select, exc
@@ -69,18 +66,18 @@ def create_socket(host, env, conf_conn):
         # send fault
         data = [1, 140, 16, 3, 1063] # fault
         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        data = [5, 220, 0, 0, 9]  # digital channel
+        data = [3, 220, 0, 0, 9]  # digital channel
         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
         data = [2, 378, 0, 10, 50]  # bypass
         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
 
     
         # send same data 100 times over
-        data_set = [[1, 140, 16, 3, 1063], [5, 220, 0, 0, 9], [2, 378, 0, 10, 50]]
-        for i in range(100): # 300 packets send
-            for data in data_set:
-                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-                time.sleep(0.0005) # .5 ms between each send
+        # data_set = [[1, 140, 16, 3, 1063], [3, 220, 0, 0, 9], [2, 378, 0, 10, 50]]
+        # for i in range(100): # 300 packets send
+        #     for data in data_set:
+        #         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        #         time.sleep(0.0005) # .5 ms between each send
 
 
         return """ TEMP"""

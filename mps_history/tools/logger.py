@@ -1,6 +1,6 @@
 import config
 
-import datetime, errno, os
+import datetime, errno
 from threading import Lock
 
 class Logger:
@@ -11,7 +11,6 @@ class Logger:
         if filename:
             self.filename = filename
         else:
-            #dir_name = os.path.dirname(self.log_file_name)
             if dev:
                 base_name = config.db_info["dev-rhel7"]["logger"]["log_directory"]
             else:
