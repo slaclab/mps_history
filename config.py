@@ -17,11 +17,12 @@ db_info  = {
         "kafka":{
             "producer_config": {
                 "bootstrap.servers": "172.24.5.197:9094",
-                "username": "mps-data-injestion-publisher",
-                "password": "H9MD7vxf9ABPDsKTyxvOtTKL14hCSU8R",
-                "security_protocol": "SASL_PLAINTEXT",
-                "sasl_mechanism": "SCRAM-SHA-512" 
+                "security.protocol": "SASL_PLAINTEXT",
+                "sasl.username": "mps-data-injestion-publisher",
+                "sasl.password": "H9MD7vxf9ABPDsKTyxvOtTKL14hCSU8R",
+                "sasl.mechanism": "SCRAM-SHA-512" 
             },
+            "ip": "172.24.5.197:9094",
             "topic": "mps-data-injestion",
             "history_schema" : """
                                 {

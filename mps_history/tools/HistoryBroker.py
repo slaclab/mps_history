@@ -40,6 +40,7 @@ class HistoryBroker:
         """
         Creates an interactable connection to Kafka through a boostrap_server
         """
+        self.kafka_ip = self.default_dbs["kafka"]["ip"]
         self.kafka_topic = self.default_dbs["kafka"]["topic"]
         self.kafka_producer_config = self.default_dbs["kafka"]["producer_config"]
         print(self.kafka_producer_config)
@@ -47,8 +48,8 @@ class HistoryBroker:
         self.kafka_producer = Producer(self.kafka_producer_config)
 
         # Send initial message to see if connection is valid
-        #self.kafka_producer.produce(self.kafka_topic, value="test", on_delivery=self.delivery_report)
-        #self.kafka_producer.poll(1) # wait 1 second for event if failed
+        self.kafka_producer.produce(self.kafka_topic, value="test", on_delivery=self.delivery_report)
+        self.kafka_producer.poll(1) # wait 1 second for event if failed
 
         # TODO - send in an initial dummy data to test connection
         # First try out each field as a false item. (to see what the error message is)
