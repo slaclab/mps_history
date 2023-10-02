@@ -13,16 +13,14 @@ from mps_database.mps_config import MPSConfig, models
 from mps_history.tools import logger
 from sqlalchemy import select
 
-from confluent_kafka import Producer
-import json
-
 class HistoryBroker:
     """
     Processes the data from central_nodes by querying the config DB, then sending it to 
     Kafka -> kubernetes infrastructure -> history DB
     """
-    def __init__(self, central_node_data_queue, dev):
+    def __init__(self, central_node_data_queue, processed_data_queue, dev):
         self.central_node_data_queue = central_node_data_queue
+        self.processed_data_queue = processed_data_queue
         self.dev = dev
         self.sock = None
         self.timestamp = 0
@@ -33,43 +31,7 @@ class HistoryBroker:
         else:
             self.default_dbs = config.db_info["test"]
 
-        self.connect_kafka()
-        self.connect_conf_db()
-
-    def connect_kafka(self):
-        """
-        Creates an interactable connection to Kafka through a boostrap_server
-        """
-        self.kafka_ip = self.default_dbs["kafka"]["ip"]
-        self.kafka_topic = self.default_dbs["kafka"]["topic"]
-        self.kafka_producer_config = self.default_dbs["kafka"]["producer_config"]
-        print(self.kafka_producer_config)
-
-        self.kafka_producer = Producer(self.kafka_producer_config)
-
-        # Send initial message to see if connection is valid
-        self.kafka_producer.produce(self.kafka_topic, value="test", on_delivery=self.delivery_report)
-        self.kafka_producer.poll(1) # wait 1 second for event if failed
-
-        # TODO - send in an initial dummy data to test connection
-        # First try out each field as a false item. (to see what the error message is)
-        return
-    
-    def delivery_report(self, err, msg):
-        """
-        Kafka delivery handler. Triggered by poll() or flush()
-        Called on success or fail of message delivery
-        Params: (These params are built into on_delivery callback)
-            err (KafkaError): The error that occurred on None on success.
-            msg (Message): The message that was produced or failed.
-        """
-        if err is not None:
-            print("Failed to deliver message: %s: %s" % (str(msg), str(err)))
-            self.logger.log("KAFKA ERROR: Unable to Connect to Kafka Server", str(self.kafka_ip))
-            exit()
-        else: # TODO: may omit this else if messages spams console
-            print("Message produced: %s" % (str(msg)))
-    
+        self.connect_conf_db()    
 
     def process_queue(self):
         """
@@ -115,22 +77,14 @@ class HistoryBroker:
         print(data)
 
         # Send the data to the Kubernetes infrastructure
-        #self.send_data(data) 
+        self.send_data(data)
         return
 
     def send_data(self, data):
         """
-        Serializes data, then sends to Kafka topic
+        Writes to processed data queue to send to Kafka topic
         """
-        # 1) See how you can send/pack the data - you might want to use packing in multi-processing since it takes time
-        # take a look at libraries that can do packing like https://protobuf.dev/ or https://flatbuffers.dev/
-        # TODO: Keep it as JSON to send, although its a bit bulky, its quick to process since the data is already a dict
-            # May use a different serializing method if too bulky. Maybe pickle. But if after consumed on Claudio end
-            # the data is converted to BSON and is smaller, then it should not matter. 
-        record_data = json.dumps(data).encode('utf-8')
-        self.kafka_producer.produce(self.kafka_topic, value=record_data, on_delivery=self.delivery_report)
-        self.kafka_producer.poll() # Trigger delivery report
-
+        self.processed_data_queue.put(data)
         return
 
     def process_channel(self, message):
