@@ -36,8 +36,8 @@ def main():
     listener_proc = Process(name="listener", target=listener, args=(central_node_data_queue, args,))
     listener_proc.start()
     # start the sender
-    sender_proc = Process(name="sender", target=sender, args=(processed_data_queue, dev,))
-    sender_proc.start()
+    # sender_proc = Process(name="sender", target=sender, args=(processed_data_queue, dev,))
+    #sender_proc.start()
     # start the workers
     num_workers = 1 # adjust the number if needed, but keep it < cpu cores available (16 cores is current hardware)
     for i in range(num_workers):
@@ -49,7 +49,7 @@ def main():
     # main process - wait for listener process to finish
     # it doesnt actually finish, so this .join() ensures this server runs forever unless terminated
     listener_proc.join()
-    sender_proc.join()
+    # sender_proc.join()
     return
 
 

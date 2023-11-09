@@ -16,7 +16,7 @@ class Message(Structure):
         ("type", c_uint),
         ("id", c_uint),
         ("old_value", c_uint),
-        ("new_value", c_uint),
+        ("new_value", c_int),
         ("aux", c_uint),
         ]
     
@@ -65,6 +65,7 @@ class HistoryListener:
         Receives data from the socket, puts it into a message object, and sends it to the central_node_data_queue to be processed
         """
         message=Message(0, 0, 0, 0, 0)
+        # TODO: Determine if ipAddr is needed, if not then just sock.recv() instead
         data, ipAddr = self.sock.recvfrom(sizeof(Message))
         message = Message.from_buffer_copy(data)
 

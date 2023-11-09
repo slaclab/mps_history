@@ -1,6 +1,7 @@
 from io import DEFAULT_BUFFER_SIZE
 import sqlalchemy
 from mps_database import mps_config, models
+from enum import Enum
 
 import config
 
@@ -10,9 +11,18 @@ from sqlalchemy import select, exc
 from ctypes import *
 
 import socket, random, pprint, struct
+from datetime import datetime
 """ TEMP """
 import time
 """ TEMP """
+
+class Bypass(Enum):
+  FaultStateType=1         # Fault change state (Faulted/Not Faulted)
+  BypassDigitalType=2      # Bypass digital fault
+  BypassAnalogType=3       # Bypass analog fault
+  BypassApplicationType=4  # Bypass analog fault
+  DigitalChannelType=5     # Change in digital channel
+  AnalogChannelType=6      # Change in analog device threshold status
 
 def main():
     """
@@ -62,15 +72,22 @@ def create_socket(host, env, conf_conn):
         print(host)
         print(port)
         print("connected to socket")
+        cur_time = int(datetime.now().strftime("%s"))
+        print(cur_time)
 
         # send fault
-        data = [1, 140, 16, 3, 1063] # fault
+        data = [Bypass.FaultStateType.value, 17, 58, 59, 1063] # fault
         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        data = [3, 220, 0, 0, 9]  # digital channel
+        data = [Bypass.DigitalChannelType.value, 1, 0, 1, 0]  # digital channel
         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        data = [2, 378, 0, 10, 50]  # bypass
+        data = [Bypass.AnalogChannelType.value, 34, 0, 1, 0]  # analog channel
         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-
+        data = [Bypass.BypassDigitalType.value, 378, 0, 10, cur_time + 50]  # bypass Digital fault
+        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        data = [Bypass.BypassAnalogType.value, 38, 0, 0, cur_time + 40]  # bypass analog fault
+        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+        data = [Bypass.BypassApplicationType.value, 1, 0, 0, cur_time + 30]  # bypass application card
+        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
     
         # send same data 100 times over
         # data_set = [[1, 140, 16, 3, 1063], [3, 220, 0, 0, 9], [2, 378, 0, 10, 50]]
