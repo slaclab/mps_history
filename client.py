@@ -28,21 +28,21 @@ def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
-    #dev should be changed to True if being run on dev-rhel7
+    #dev should be changed to True if being run on dev-srv09
     dev = True
     #restart is True if you want tables to be wiped and recreated 
     #THIS DELETES THE CONFIG TABLE SOMEHOW
     restart = False
 
     if dev:
-        env = config.db_info["dev-rhel7"]
-        host = "dev-rhel7"
+        env = config.db_info["dev-srv09"]
+        host = "dev-srv09"
     else:
         env = config.db_info["test"]
         host = '127.0.0.1'
     db_path = env["file_paths"]["history"]
 
-    conf_conn = MPSConfig(config.db_info["dev-rhel7"]["file_paths"]["config"] + '/' + config.db_info["dev-rhel7"]["file_names"]["config"]) # connect to config db
+    conf_conn = MPSConfig(config.db_info["dev-srv09"]["file_paths"]["config"] + '/' + config.db_info["dev-srv09"]["file_names"]["config"]) # connect to config db
 
     """ TEMP """
     create_socket(host, env, conf_conn)

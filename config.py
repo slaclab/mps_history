@@ -1,5 +1,5 @@
 db_info  = {
-    "dev-rhel7":{
+    "dev-srv09":{
         "file_paths":{
             #"config":"/afs/slac/g/lcls/physics/mps_configuration/current",
             "config":"/u/cd/pnispero/mps/mps_history/mps_configuration",
@@ -70,6 +70,63 @@ db_info  = {
         # "logger":{
         #     "log_directory":"/u/cd/lking/mps/mps_logs/mps_history"
         # }
+    },
+    "dev-rhel7":{
+        "file_paths":{
+            #"config":"/afs/slac/g/lcls/physics/mps_configuration/current",
+            "config":"/u/cd/pnispero/mps/mps_history/mps_configuration",
+            "history":"/u/cd/pnispero/mps/mps_history",
+            "runtime":"/u1/lcls/physics/mps_manager"
+        },
+        "file_names":{
+            "config":"test.db", #"mps_config-2023-05-22-a.db",
+            "history":"mps_gun_history_7_12_23.db",
+            "runtime":None
+        },
+        "logger":{
+            "log_directory":"/u/cd/pnispero/mps/mps_history/test_logs/"
+        },
+        "kafka":{
+            "producer_config": {
+                "bootstrap.servers": "172.24.5.197:9094",
+                "security.protocol": "SASL_PLAINTEXT",
+                "sasl.username": "mps-data-injestion-publisher",
+                "sasl.password": "H9MD7vxf9ABPDsKTyxvOtTKL14hCSU8R",
+                "sasl.mechanism": "SCRAM-SHA-512" 
+            },
+            "ip": "172.24.5.197:9094",
+            "topic": "mps-data-injestion",
+            "history_schema" : """
+                                {
+                                    "id": 1,
+                                    "type": "",
+                                    "timestamp": "",
+                                    "old_state": "",
+                                    "new_state": "",
+                                    "channel": {        
+                                        "number": 1,
+                                        "name": "",
+                                        "card_number": 1,
+                                        "crate_loc": ""
+                                    },
+                                    "bypass": {
+                                        "expiration": "",
+                                        "description": ""
+                                    },
+                                    "fault": {
+                                        "id": 1,
+                                        "description": "",
+                                        "beams": [
+                                            {
+                                                "class": "",
+                                                "destination": ""
+                                            }
+                                        ],
+                                        "active": true
+                                    }
+                                }
+                                """
+        }
     },
     "test":{ 
         "file_paths":{
