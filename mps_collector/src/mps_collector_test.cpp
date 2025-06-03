@@ -1,8 +1,10 @@
 /*
-mps_collector.cpp 
+mps_collector_test.cpp 
 
-DESC: Main program to receive data from MPS Central Nodes via UDP
+DESC: Copy of the mps_collector but I commented out the Kafka parts just testing the udp port. 
+Main program to receive data from MPS Central Nodes via UDP
     and write to ELOG Kafka via TCP to be later processed.
+
 
 Reference: https://github.com/confluentinc/librdkafka/blob/master/examples/producer.cpp
 */
@@ -137,8 +139,8 @@ void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string topic
 
 int main(int argc, char **argv) {
   if (argc < 7) {
-    std::cerr << "Usage: " << argv[0] << " <bootstrap.servers> <topic> <udp_port> <security_protocol> <sasl_username> <sasl_password>\n";
-    std::cerr << "Example: " << argv[0] << " 172.24.5.197:9094 my_topic 4242 SASL_SSL myuser mypassword\n";
+    std::cerr << "Usage: " << argv[0] << " <brokers> <topic> <udp_port> <security_protocol> <sasl_username> <sasl_password>\n";
+    std::cerr << "Example: " << argv[0] << " kafka:9092 my_topic 4242 SASL_SSL myuser mypassword\n";
     exit(1);
   }
 
@@ -153,24 +155,24 @@ int main(int argc, char **argv) {
   signal(SIGINT, sigterm);
   signal(SIGTERM, sigterm);
 
-  // Configure kafka
-  RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
-  configure_kafka(*conf, brokers, topic, udp_port, security_protocol, sasl_username, sasl_password);
+  // // Configure kafka
+  // RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+  // configure_kafka(*conf, brokers, topic, udp_port, security_protocol, sasl_username, sasl_password);
 
-  // Create producer
-  std::string errstr;
-  RdKafka::Producer *producer = RdKafka::Producer::create(conf, errstr);
-  if (!producer) {
-    std::cerr << "Failed to create producer: " << errstr << std::endl;
-    exit(1);
-  }
-  delete conf;
+  // // Create producer
+  // std::string errstr;
+  // RdKafka::Producer *producer = RdKafka::Producer::create(conf, errstr);
+  // if (!producer) {
+  //   std::cerr << "Failed to create producer: " << errstr << std::endl;
+  //   exit(1);
+  // }
+  // delete conf;
 
   // Create UDP socket
   int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (sock_fd < 0) {
     std::cerr << "Failed to create socket" << std::endl;
-    delete producer;
+    // delete producer;
     exit(1);
   }
 
@@ -198,7 +200,7 @@ int main(int argc, char **argv) {
   if (bind(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
     std::cerr << "Failed to bind socket" << std::endl;
     close(sock_fd);
-    delete producer;
+    // delete producer;
     exit(1);
   }
 
@@ -253,43 +255,42 @@ int main(int argc, char **argv) {
             
             std::cout << "Received message from " << client_ip << ":" << ntohs(client_addr.sin_port) << std::endl;
             message->print();
-            continue
         #endif  
 
         // Update statistics
         stats.update(bytes_received);
         
         // Send to Kafka
-      retry_produce:
-        RdKafka::ErrorCode err = producer->produce(
-            topic,
-            RdKafka::Topic::PARTITION_UA,
-            RdKafka::Producer::RK_MSG_COPY,
-            buffer, sizeof(Message),
-            NULL, 0,  // No key
-            0,        // Use current timestamp
-            NULL,     // No headers
-            NULL);    // No opaque
+      // retry_produce:
+      //   RdKafka::ErrorCode err = producer->produce(
+      //       topic,
+      //       RdKafka::Topic::PARTITION_UA,
+      //       RdKafka::Producer::RK_MSG_COPY,
+      //       buffer, sizeof(Message),
+      //       NULL, 0,  // No key
+      //       0,        // Use current timestamp
+      //       NULL,     // No headers
+      //       NULL);    // No opaque
 
-        if (err != RdKafka::ERR_NO_ERROR) {
-          if (err == RdKafka::ERR__QUEUE_FULL) {
-            // Queue full, wait and retry
-            /* If the internal queue is full, wait for
-            * messages to be delivered and then retry.
-            * The internal queue represents both
-            * messages to be sent and messages that have
-            * been sent or failed, awaiting their
-            * delivery report callback to be called.
-            *
-            * The internal queue is limited by the
-            * configuration property
-            * queue.buffering.max.messages and queue.buffering.max.kbytes */
-            producer->poll(1000); /*block for max 1000ms*/
-            goto retry_produce;
-          } else {
-            std::cerr << "Failed to produce message: " << RdKafka::err2str(err) << std::endl;
-          }
-        }
+      //   if (err != RdKafka::ERR_NO_ERROR) {
+      //     if (err == RdKafka::ERR__QUEUE_FULL) {
+      //       // Queue full, wait and retry
+      //       /* If the internal queue is full, wait for
+      //       * messages to be delivered and then retry.
+      //       * The internal queue represents both
+      //       * messages to be sent and messages that have
+      //       * been sent or failed, awaiting their
+      //       * delivery report callback to be called.
+      //       *
+      //       * The internal queue is limited by the
+      //       * configuration property
+      //       * queue.buffering.max.messages and queue.buffering.max.kbytes */
+      //       producer->poll(1000); /*block for max 1000ms*/
+      //       goto retry_produce;
+      //     } else {
+      //       std::cerr << "Failed to produce message: " << RdKafka::err2str(err) << std::endl;
+      //     }
+      //   }
       } else if (bytes_received > 0) {
         // Received data but not the expected size
         std::cerr << "Warning: Received " << bytes_received << " bytes, expected " 
@@ -298,7 +299,7 @@ int main(int argc, char **argv) {
     }
     
     // Process delivery reports
-    producer->poll(0);
+    // producer->poll(0);
   }
 
   // Clean shutdown
@@ -306,15 +307,15 @@ int main(int argc, char **argv) {
   
   // Flush any remaining messages
   std::cout << "Flushing remaining messages..." << std::endl;
-  producer->flush(10 * 1000 /* wait for max 10 seconds */);
+  // producer->flush(10 * 1000 /* wait for max 10 seconds */);
 
-  if (producer->outq_len() > 0) {
-    std::cerr << producer->outq_len() << " message(s) were not delivered" << std::endl;
-  }
+  // if (producer->outq_len() > 0) {
+  //   std::cerr << producer->outq_len() << " message(s) were not delivered" << std::endl;
+  // }
 
   // Clean up
   close(sock_fd);
-  delete producer;
+  // delete producer;
 
   return 0;
 }
