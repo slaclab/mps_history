@@ -48,5 +48,17 @@ Ex: `$ cd ../ && ls`
 `include  kafka.tar.gz  lib  librdkafka-2.8.0  share`
 
 Linking
-1. Once you're able to install the library, then we want to link it to the mps collector.
-$LD_LIBRARY_PATH
+1. Once you're able to install the library, then we want to link it to the mps collector. Thats already done in the Makefile. 
+
+### Testing locally
+1. Use the [docker-compose.yml](mps_collector/README.md) with `docker compose up -d`
+2. (Optional) - open up the kafka UI at http://localhost:8080
+3. Build with debug `cd mps_collecor/src && make debug`
+4. Run the history collector `./mps_collector_debug localhost:9094 your_topic 3356 PLAINTEXT "" ""`
+5. Run the test [client.py](client.py) `python3 client.py`
+
+If `python3 client.py` throws error with mps_database. Then you can download it from the dev servers onto the top of this repo.
+
+`scp -r YOUR_USERNAME@dev-srv09:/sdf/group/ad/transition/afs/slac.sta
+nford.edu/g/lcls/vol9/package/anaconda/envs/python3.10envs/rhel7/v1.0/lib/python3.10/site-packag
+es/mps_database ./`
