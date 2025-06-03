@@ -82,8 +82,8 @@ private:
   uint64_t bytes_received;
 };
 
-void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string topic, int udp_port,
-                    std::string security_protocol, std::string sasl_username, std::string sasl_password) {
+void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string security_protocol,
+                     std::string sasl_username, std::string sasl_password) {
   // Create Kafka configuration
   // RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
   std::string errstr;
@@ -115,8 +115,8 @@ void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string topic
     exit(1);
   }
 
-  // Set delivery report callback
-  DeliveryReportCallback dr_cb;
+  // Set delivery report callback (store pointer to dr_cb)
+  static DeliveryReportCallback dr_cb; // Set to static so it lives for programs lifetime
   if (conf.set("dr_cb", &dr_cb, errstr) != RdKafka::Conf::CONF_OK) {
     std::cerr << errstr << std::endl;
     exit(1);
@@ -138,7 +138,7 @@ void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string topic
 int main(int argc, char **argv) {
   if (argc < 7) {
     std::cerr << "Usage: " << argv[0] << " <bootstrap.servers> <topic> <udp_port> <security_protocol> <sasl_username> <sasl_password>\n";
-    std::cerr << "Example: " << argv[0] << " 172.24.5.197:9094 my_topic 4242 SASL_SSL myuser mypassword\n";
+    std::cerr << "Example: " << argv[0] << " 172.24.5.197:9094 my_topic 3356 SASL_SSL myuser mypassword\n";
     exit(1);
   }
 
@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
 
   // Configure kafka
   RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
-  configure_kafka(*conf, brokers, topic, udp_port, security_protocol, sasl_username, sasl_password);
+  configure_kafka(*conf, brokers, security_protocol, sasl_username, sasl_password);
 
   // Create producer
   std::string errstr;
@@ -165,6 +165,42 @@ int main(int argc, char **argv) {
     exit(1);
   }
   delete conf;
+
+  // Verify connection to Kafka
+  std::cout << "Verifying Kafka connection..." << std::endl;
+  RdKafka::Metadata *metadata = NULL;
+  RdKafka::ErrorCode err = producer->metadata(
+    true,     // all_topics
+    NULL,     // only_topic (no specific topic)
+    &metadata, // metadata_p (output parameter)
+    10000     // timeout_ms
+  );
+  if (err != RdKafka::ERR_NO_ERROR) {
+      std::cerr << "Failed to get metadata: " << RdKafka::err2str(err) << std::endl;
+      std::cerr << "Cannot connect to Kafka cluster at " << brokers << std::endl;
+      delete producer;
+      delete conf;
+      exit(1);
+  }
+  
+  std::cout << "Successfully connected to Kafka cluster with " 
+            << metadata->brokers()->size() << " broker(s)" << std::endl;
+  
+  // Check if topic exists
+  bool topic_exists = false;
+  for (auto topic_it = metadata->topics()->begin(); 
+        topic_it != metadata->topics()->end(); ++topic_it) {
+      if ((*topic_it)->topic() == topic) {
+          topic_exists = true;
+          std::cout << "Topic '" << topic << "' exists with " 
+                  << (*topic_it)->partitions()->size() << " partition(s)" << std::endl;
+          break;
+      }
+  }
+  
+  if (!topic_exists) {
+      std::cout << "Topic '" << topic << "' does not exist yet, it will be auto-created if enabled" << std::endl;
+  }
 
   // Create UDP socket
   int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -253,23 +289,33 @@ int main(int argc, char **argv) {
             
             std::cout << "Received message from " << client_ip << ":" << ntohs(client_addr.sin_port) << std::endl;
             message->print();
-            continue
+            std::cout << "Message printed successfully" << std::endl;
         #endif  
 
         // Update statistics
         stats.update(bytes_received);
+        std::cout << "Statistics updated, preparing to produce to Kafka..." << std::endl;
         
-        // Send to Kafka
+      // Make the produce call safer by catching any errors
+      RdKafka::ErrorCode err;
       retry_produce:
-        RdKafka::ErrorCode err = producer->produce(
-            topic,
-            RdKafka::Topic::PARTITION_UA,
-            RdKafka::Producer::RK_MSG_COPY,
-            buffer, sizeof(Message),
-            NULL, 0,  // No key
-            0,        // Use current timestamp
-            NULL,     // No headers
-            NULL);    // No opaque
+      try {
+          err = producer->produce(
+              topic,
+              RdKafka::Topic::PARTITION_UA,
+              RdKafka::Producer::RK_MSG_COPY, // Use COPY flag to ensure data is copied
+              buffer, sizeof(Message),
+              NULL, 0,  // No key
+              0,        // Use current timestamp
+              NULL,     // No headers
+              NULL);    // No opaque
+      } catch (const std::exception& e) {
+          std::cerr << "Exception in produce call: " << e.what() << std::endl;
+          continue;
+      } catch (...) {
+          std::cerr << "Unknown exception in produce call" << std::endl;
+          continue;
+      }
 
         if (err != RdKafka::ERR_NO_ERROR) {
           if (err == RdKafka::ERR__QUEUE_FULL) {

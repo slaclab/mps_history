@@ -1,0 +1,181 @@
+#!/usr/bin/env python
+from mps_database.mps_config import MPSConfig, models, runtime
+from sqlalchemy import MetaData
+from mps_database.tools.mps_names import MpsName
+from mps_database.tools.mps_reader import MpsReader, MpsDbReader
+from mps_database.tools.cn_status_display import CnStatusDisplay
+from latex import Latex
+import math
+import argparse
+import time
+import yaml
+import os
+import sys
+
+class ExportLinkNodeGroups(MpsReader):
+
+  def __init__(self, db_file,template_path,dest_path,clean,verbose,session):
+    MpsReader.__init__(self,db_file=db_file,dest_path=dest_path,template_path=template_path,clean=clean,verbose=verbose)
+    self.cn_status_display = CnStatusDisplay()
+    self.verbose = verbose
+    self.session = session   
+
+  def generate_group_alarm(self,group):
+    macros = {'MPS_PREFIX':group.central_node,
+              'LN_GROUP':'{0}'.format(group.number)}
+    file_path1 = '{0}timeout/group_{1}_{2}.alhConfig'.format(self.alarm_path,group.number,group.central_node.split(':')[2].lower())
+    self.write_alarm_file(path=file_path1, template_name='mps_group_header.template', macros=macros)
+    include_path1 = '{0}group_{1}_include.txt'.format(self.alarm_path,group.central_node.split(':')[2].lower())
+    include_macros1 = {'PREFIX':group.central_node,
+                      'FILENAME':'group_{0}_{1}.alhConfig'.format(group.number,group.central_node.split(':')[2].lower())}
+    self.write_alarm_file(path=include_path1, template_name='group_include.template', macros=include_macros1)
+
+  def startReport(self,type,title):
+    if type == 'crate':
+      filename = self.crate_filename
+    elif type == 'input':
+      filename = self.input_filename
+    else:
+      return None
+    report = Latex(filename)
+    report.startDocument(title,self.config_version)
+    return report
+
+  def endReport(self,report):
+    report.endDocument(self.report_path)
+
+  def generate_group_displays(self,group,link_nodes):
+    last_ln = [ln for ln in link_nodes if ln.group_link == 0]
+    if len(last_ln) > 1:
+      for ln in last_ln:
+        print(ln.get_name())
+      print("ERROR: Too many last link nodes in group {0}".format(group))
+      return
+    if len(last_ln) < 1:
+      print("ERROR: Not enough last link nodes in group {0}".format(group))
+      return
+    last_ln = last_ln[0]
+    next_to_last_ln = [ln for ln in link_nodes if ln.group_link == last_ln.crate.id]
+     
+
+  def generate_group_display(self,group,link_nodes):
+    header_height = 50
+    footer_height = 51
+    embedded_width = 457
+    embedded_height = 230
+    extra = 10
+    max_width = 2000
+    fudge = 0
+    last_y = header_height
+    rows = 1
+    number_of_nodes = len(link_nodes)
+    window_width = number_of_nodes * embedded_width+extra*2
+    too_long = False
+    last_ln = [ln for ln in link_nodes if ln.group_link == 0]
+    if len(last_ln) > 1:
+      for ln in last_ln:
+        print(ln.get_name())
+      print("ERROR: Too many last link nodes in group {0}".format(group))
+      return
+    if len(last_ln) < 1:
+      print("ERROR: Not enough last link nodes in group {0}".format(group))
+      return
+    last_ln = last_ln[0]
+    next_to_last_ln = [ln for ln in link_nodes if ln.group_link == last_ln.crate.id]
+    if len(next_to_last_ln) > 1:
+      last_y = last_y + embedded_height/2
+      rows = 2
+      window_width = int((math.floor(len(link_nodes)/2)+1) * embedded_width + extra * 2)
+    if window_width > max_width:
+      last_y = last_y + embedded_height
+      rows = 2
+      too_long = True
+      window_width = int((math.floor(len(link_nodes)/2)+1) * embedded_width + extra * 2)
+      fudge = int(embedded_width / 2)
+      if len(link_nodes) % 2 == 0:
+        window_width = int((math.floor(len(link_nodes)/2)) * embedded_width + extra * 2)
+        fudge = 0
+    window_height = header_height + footer_height + rows*embedded_height
+    last_x = window_width - embedded_width - extra - fudge
+    macros = { 'WIDTH':'{0}'.format(int(window_width)),
+               'HEIGHT':'{0}'.format(int(window_height)),
+               'TITLE':'SC Linac MPS Link Node Group {0}'.format(group) }
+    filename = '{0}groups/LinkNodeGroup{1}.ui'.format(self.display_path,group)
+    self.__write_group_header(path=filename,macros=macros)
+    cn = last_ln.get_cn_prefix()
+    if cn == 'SIOC:SYS0:MP03':
+      t = 'CN LI00-S2'
+    elif cn == 'SIOC:SYS0:MP01':
+      t = 'CN B005-S2'
+    elif cn == 'SIOC:SYS0:MP02':
+      t = 'CN B005-S3'
+    else:
+      t = ''
+    self.write_group_embed(last_ln,last_x,last_y,'LOC',t,cn,filename)
+    if rows > 1:
+      y = header_height + embedded_height
+    else:
+      y = header_height
+    for node in next_to_last_ln:
+      test_ln = node
+      pin = last_ln.get_app_prefix()
+      x = last_x - embedded_width
+      self.write_group_embed(node,x,y,'LOC','LN Rx',pin,filename)
+      more_lns = True
+      while more_lns:
+        pin = test_ln.get_app_prefix()
+        lk = [ln for ln in link_nodes if ln.group_link == test_ln.crate.id]
+        if len(lk) < 1:
+          more_lns = False
+          break
+        test_ln = lk[0]
+        x = x-embedded_width
+        if x<0:
+          if too_long:
+            x = window_width - embedded_width - extra
+            y = y-embedded_height
+        self.write_group_embed(test_ln,x,y,'LOC','LN Rx',pin,filename)
+      y = y-embedded_height
+    y = window_height-footer_height-1
+    buttonx = int(window_width/2-100)
+    buttony = y + 12
+    macros = { 'CN':'{0}'.format(last_ln.get_cn_prefix()),
+               'BUTTON_X':'{0}'.format(int(buttonx)),
+               'BUTTON_Y':'{0}'.format(int(buttony)),
+               'Y':'{0}'.format(int(y)) }
+    self.__write_group_end(path=filename,macros=macros)
+
+  def write_group_embed(self,ln,x,y,type,text,pin1,filename):
+    macros = { 'P':'{0}'.format(ln.get_app_prefix()),
+               'CN':'{0}'.format(ln.get_cn_prefix()),
+               'AID':'{0}'.format(ln.get_digital_app_id()),
+               'SLOT_FILE':'LinkNode{0}_slot.ui'.format(ln.lcls1_id),
+               'P_IN':'{0}'.format(pin1),
+               'X':'{0}'.format(int(x)),
+               'Y':'{0}'.format(int(y)),
+               'PGP':'{0}'.format(ln.group_link_destination),
+               'LN':'{0}'.format(ln.lcls1_id),
+               'TYPE':'{0}'.format(type),
+               'LOCA':'{0}'.format(ln.area),
+               'IOC_UNIT':'{0}'.format(ln.location),
+               'INST':'{0}'.format(ln.get_app_number()),
+               'TEXT':'{0}'.format(text)}
+    self.__write_group_embed(path=filename,macros=macros)
+
+  def __write_group_header(self, path, macros):
+      self.write_ui_file(path=path, template_name="ln_group_header.tmpl",macros=macros)
+ 
+  def __write_group_embed(self, path, macros):
+      self.write_ui_file(path=path, template_name="link_node_group_embedded_display.tmpl",macros=macros)
+
+  def __write_group_end(self, path, macros):
+      self.write_ui_file(path=path, template_name="ln_group_end.tmpl",macros=macros)
+
+  def get_dest_path(self):
+      return self.dest_path
+
+  def get_template_path(self):
+      return self.template_path
+
+  def write_file(self,file,template,macros):
+    self.write_file_from_template(file=file, template=template, macros=macros)

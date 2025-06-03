@@ -43,8 +43,8 @@ Build
 The prefix specifies the base directory where the library will be installed. Default is usually "/usr/local", which we want to avoid
 2. `make`
 3. `make install`
-Then confirm the lib, and include are installed.
-Ex: `$ ls`
+Then confirm the lib, and include are installed. 
+Ex: `$ cd ../ && ls`
 `include  kafka.tar.gz  lib  librdkafka-2.8.0  share`
 
 Linking
