@@ -16,7 +16,7 @@ from datetime import datetime
 import time
 """ TEMP """
 
-class Bypass(Enum):
+class HistoryMessageType(Enum):
   FaultStateType=1         # Fault change state (Faulted/Not Faulted)
   BypassDigitalType=2      # Bypass digital fault
   BypassAnalogType=3       # Bypass analog fault
@@ -76,25 +76,19 @@ def create_socket(host, env, conf_conn):
         print(cur_time)
 
         # send fault
-        data = [Bypass.FaultStateType.value, 17, 58, 59, 1063] # fault
-        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        data = [Bypass.DigitalChannelType.value, 1, 0, 1, 0]  # digital channel
-        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        data = [Bypass.AnalogChannelType.value, 34, 0, 1, 0]  # analog channel
-        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        data = [Bypass.BypassDigitalType.value, 378, 0, 10, cur_time + 50]  # bypass Digital fault
-        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        data = [Bypass.BypassAnalogType.value, 38, 0, 0, cur_time + 40]  # bypass analog fault
-        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        data = [Bypass.BypassApplicationType.value, 1, 0, 0, cur_time + 30]  # bypass application card
-        s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-    
-        # send same data 100 times over
-        # data_set = [[1, 140, 16, 3, 1063], [3, 220, 0, 0, 9], [2, 378, 0, 10, 50]]
-        # for i in range(100): # 300 packets send
-        #     for data in data_set:
-        #         s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-        #         time.sleep(0.0005) # .5 ms between each send
+        data_set = [[HistoryMessageType.FaultStateType.value, 17, 58, 59, 1063],\
+                    [HistoryMessageType.DigitalChannelType.value, 1, 0, 1, 0],\
+                    [HistoryMessageType.AnalogChannelType.value, 34, 0, 1, 0],\
+                    [HistoryMessageType.BypassDigitalType.value, 378, 0, 10, cur_time + 50],\
+                    [HistoryMessageType.BypassAnalogType.value, 38, 0, 0, cur_time + 40],\
+                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 0, cur_time + 30]]
+
+        # send same data 1 times over 
+        # TODO: You can increase the for loop number for testing"
+        for i in range(1): # 6 packets send
+            for data in data_set:
+                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+                time.sleep(0.000001) # 1 us between each send
 
 
         return """ TEMP"""

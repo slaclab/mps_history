@@ -83,11 +83,10 @@ private:
 };
 
 void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string security_protocol,
-                     std::string sasl_username, std::string sasl_password) {
+                     std::string sasl_username, std::string sasl_password, std::string sasl_mechanism) {
   // Create Kafka configuration
   // RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
   std::string errstr;
-
   // Configure Kafka
   if (conf.set("bootstrap.servers", brokers, errstr) != RdKafka::Conf::CONF_OK) {
     std::cerr << errstr << std::endl;
@@ -100,7 +99,7 @@ void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string secur
     exit(1);
   }
 
-  if (conf.set("sasl.mechanism", "PLAIN", errstr) != RdKafka::Conf::CONF_OK) {
+  if (conf.set("sasl.mechanism", sasl_mechanism, errstr) != RdKafka::Conf::CONF_OK) {
     std::cerr << "Failed to set sasl.mechanism: " << errstr << std::endl;
     exit(1);
   }
@@ -136,9 +135,9 @@ void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string secur
 }
 
 int main(int argc, char **argv) {
-  if (argc < 7) {
-    std::cerr << "Usage: " << argv[0] << " <bootstrap.servers> <topic> <udp_port> <security_protocol> <sasl_username> <sasl_password>\n";
-    std::cerr << "Example: " << argv[0] << " 172.24.5.197:9094 my_topic 3356 SASL_SSL myuser mypassword\n";
+  if (argc < 8) {
+    std::cerr << "Usage: " << argv[0] << " <bootstrap.servers> <topic> <udp_port> <security_protocol> <sasl_username> <sasl_password> <sasl_mechanism\n";
+    std::cerr << "Example: " << argv[0] << " 172.24.5.197:9094 my_topic 3356 SASL_PLAINTEXT myuser mypassword SCRAM-SHA-512\n";
     exit(1);
   }
 
@@ -148,6 +147,7 @@ int main(int argc, char **argv) {
   std::string security_protocol = argv[4];
   std::string sasl_username = argv[5];
   std::string sasl_password = argv[6];
+  std::string sasl_mechanism = argv[7];
 
   // Set up signal handlers
   signal(SIGINT, sigterm);
@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
 
   // Configure kafka
   RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
-  configure_kafka(*conf, brokers, security_protocol, sasl_username, sasl_password);
+  configure_kafka(*conf, brokers, security_protocol, sasl_username, sasl_password, sasl_mechanism);
 
   // Create producer
   std::string errstr;

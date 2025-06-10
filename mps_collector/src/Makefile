@@ -2,7 +2,7 @@
 CXX = g++
 
 # Compiler flags
-CXXFLAGS = -Wall -Wextra -O2 -std=c++11 -static
+CXXFLAGS = -Wall -Wextra -O2 -std=c++11
 
 # Debug flags
 DEBUG_FLAGS = -DDEBUG -g -O0
@@ -23,10 +23,12 @@ INCLUDES = -I$(RDKAFKA_PATH)/src -I$(RDKAFKA_PATH)/src-cpp
 # libzstd-dev (optional, for ZStd compression support)
 # libcurl-dev (optional, for SASL OAUTHBEARER OIDC support)
 
-# Libraries to link (static linking)
+# Static link librdkafka, dynamic link system libraries
 LIBS = $(RDKAFKA_PATH)/src-cpp/librdkafka++.a \
-		$(RDKAFKA_PATH)/src/librdkafka.a \
+       $(RDKAFKA_PATH)/src/librdkafka.a \
        -lpthread -lz -lssl -lcrypto -lsasl2 -lzstd -lcurl
+
+# -ldl -lrt
 
 # Source files
 SRCS = mps_collector.cpp
