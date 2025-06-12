@@ -65,7 +65,18 @@ If `python3 client.py` throws error with mps_database. Then you can download it 
 
 ### Testing on dev cluster
 1. Build with debug `make debug`
-2. Run the history collector
+2. Run the history collector (make sure to replace <password> with actual password)
 `./bin/mps_collector_debug 172.24.8.129:9094 mps-data-injestion 3356 SASL_PLAINTEXT mps-data-injestion-publisher <password> SCRAM-SHA-512`
 3. Run the test [client.py](client.py) `python3 client.py`
-4. 
+4. (TODO: in progress, will move to a container you have to run on the k8s cluster) Run the processor [HistoryBroker.py](HistoryBroker.py) `python3 mps_processor/mps_history/tools/HistoryBroker.py`
+
+### How to view data in kafka instance
+1. Install kafkacat `sudo apt-get install kafkacat`
+2. 
+
+# With authentication
+kafkacat -b 172.24.8.129:9094 -X security.protocol=SASL_PLAINTEXT \
+  -X sasl.mechanisms=SCRAM-SHA-512 \
+  -X sasl.username=mps-data-injestion-publisher \
+  -X sasl.password=<password> \
+  -C -t mps-data-injestion -o beginning

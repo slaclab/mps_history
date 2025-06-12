@@ -2,8 +2,8 @@ db_info  = {
     "dev-srv09":{
         "file_paths":{
             #"config":"/afs/slac/g/lcls/physics/mps_configuration/current",
-            "config":"/u/cd/pnispero/mps/mps_history/mps_configuration",
-            "history":"/u/cd/pnispero/mps/mps_history",
+            "config":"/sdf/home/p/pnispero/mps/mps_history/mps_configuration",
+            "history":"/sdf/home/p/pnispero/mps/mps_history",
             "runtime":"/u1/lcls/physics/mps_manager"
         },
         "file_names":{
@@ -12,7 +12,7 @@ db_info  = {
             "runtime":None
         },
         "logger":{
-            "log_directory":"/u/cd/pnispero/mps/mps_history/test_logs/"
+            "log_directory":"/sdf/home/p/pnispero/mps/mps_history/test_logs/"
         },
         "kafka":{
             "producer_config": {
@@ -74,8 +74,8 @@ db_info  = {
     "dev-rhel7":{
         "file_paths":{
             #"config":"/afs/slac/g/lcls/physics/mps_configuration/current",
-            "config":"/u/cd/pnispero/mps/mps_history/mps_configuration",
-            "history":"/u/cd/pnispero/mps/mps_history",
+            "config":"/sdf/home/p/pnispero/mps/mps_history/mps_configuration",
+            "history":"/sdf/home/p/pnispero/mps/mps_history",
             "runtime":"/u1/lcls/physics/mps_manager"
         },
         "file_names":{
@@ -84,7 +84,7 @@ db_info  = {
             "runtime":None
         },
         "logger":{
-            "log_directory":"/u/cd/pnispero/mps/mps_history/test_logs/"
+            "log_directory":"/sdf/home/p/pnispero/mps/mps_history/test_logs/"
         },
         "kafka":{
             "producer_config": {
@@ -130,8 +130,8 @@ db_info  = {
     },
     "test":{ 
         "file_paths":{
-            "config":"/u/cd/pnispero/mps/mps_history/mps_configuration",
-            "history":"/u/cd/pnispero/mps/mps_history",
+            "config":"/sdf/home/p/pnispero/mps/mps_history/mps_configuration",
+            "history":"/sdf/home/p/pnispero/mps/mps_history",
             "runtime":None
         },
         "file_names":{
@@ -140,7 +140,7 @@ db_info  = {
             "runtime":None
         },
         "logger":{
-            "log_directory":"/u/cd/pnispero/mps/mps_history/test_logs/"
+            "log_directory":"/sdf/home/p/pnispero/mps/mps_history/test_logs/"
         }
         # lking filepaths
         # "file_paths":{

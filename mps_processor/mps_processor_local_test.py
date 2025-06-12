@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os
+
 from confluent_kafka import Consumer
 from enum import Enum
 import struct
@@ -36,20 +36,17 @@ def parse_message(binary_data):
 
 if __name__ == '__main__':
 
-    sasl_password = os.getenv("KAFKA_PASSWORD")
-    if (sasl_password == None):
-        raise ValueError("Missing environment variable - KAFKA_PASSWORD")
-
     config = {
         # User-specific properties that you must set
-        'bootstrap.servers': '172.24.8.129:9094',
-        'sasl.username':     'mps-data-injestion-publisher',
-        'sasl.password':     sasl_password,
+        'bootstrap.servers': 'localhost:9094',
+        'sasl.username':     '',
+        'sasl.password':     '',
 
         # Fixed properties
-        'security.protocol': 'SASL_PLAINTEXT',
-        'sasl.mechanisms':   'SCRAM-SHA-512',
-        'group.id':          'mps-data-injestion-publisher-group'
+        'security.protocol': 'PLAINTEXT',
+        'sasl.mechanisms':   'PLAIN',
+        'group.id':          'kafka-python-getting-started',
+        'auto.offset.reset': 'earliest'
     }
 
     # Remove SASL settings if not using authentication
@@ -62,7 +59,7 @@ if __name__ == '__main__':
     consumer = Consumer(config)
 
     # Subscribe to topic
-    topic = "mps-data-injestion"
+    topic = "your_topic"
     consumer.subscribe([topic])
 
     # Poll for new messages from Kafka and print them.
