@@ -1,5 +1,14 @@
 from io import DEFAULT_BUFFER_SIZE
 import sqlalchemy
+
+""" TEMP """
+# Forced config mps_database to point to the new_mpsdb 
+import sys
+# caution: path[0] is reserved for script path (or '' in REPL)
+# sys.path.insert(1, '/sdf/home/p/pnispero/mps/mps_database_new')
+sys.path.insert(1, '/home/pnispero/mps_history/mps_database/')
+""" TEMP """
+
 from mps_database import mps_config, models
 from enum import Enum
 

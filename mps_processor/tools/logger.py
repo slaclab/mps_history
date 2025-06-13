@@ -12,11 +12,11 @@ class Logger:
             self.filename = filename
         else:
             if dev:
-                base_name = config.db_info["dev-rhel7"]["logger"]["log_directory"]
+                base_name = config.db_info["dev-srv09"]["logger"]["log_directory"]
             else:
                 base_name = config.db_info["test"]["logger"]["log_directory"]
             # TODO: commented out for testing
-            self.filename = '{}-{}'.format(base_name, datetime.datetime.now().strftime('%Y.%m.%d %H:%M:%S'))  
+            self.filename = '{}{}'.format(base_name, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))  
         self.stdout = stdout
         self.connect_file()
         

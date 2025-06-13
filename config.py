@@ -128,19 +128,19 @@ db_info  = {
                                 """
         }
     },
-    "test":{ 
+    "test":{  # My local pc paths
         "file_paths":{
-            "config":"/sdf/home/p/pnispero/mps/mps_history/mps_configuration",
-            "history":"/sdf/home/p/pnispero/mps/mps_history",
+            "config":"/home/pnispero/mps_history/mps_configuration",
+            "history":"/home/pnispero/mps_history",
             "runtime":None
         },
         "file_names":{
-            "config":"mps_config-2023-05-22-a.db",
+            "config":"test.db",
             "history":"mps_gun_history_7_12_23.db",
             "runtime":None
         },
         "logger":{
-            "log_directory":"/sdf/home/p/pnispero/mps/mps_history/test_logs/"
+            "log_directory":"/home/pnispero/mps_history/test_logs/"
         }
         # lking filepaths
         # "file_paths":{

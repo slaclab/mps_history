@@ -68,7 +68,23 @@ If `python3 client.py` throws error with mps_database. Then you can download it 
 2. Run the history collector (make sure to replace <password> with actual password)
 `./bin/mps_collector_debug 172.24.8.129:9094 mps-data-injestion 3356 SASL_PLAINTEXT mps-data-injestion-publisher <password> SCRAM-SHA-512`
 3. Run the test [client.py](client.py) `python3 client.py`
-4. (TODO: in progress, will move to a container you have to run on the k8s cluster) Run the processor [HistoryBroker.py](HistoryBroker.py) `python3 mps_processor/mps_history/tools/HistoryBroker.py`
+4. (TODO: in progress, will move to a container you have to run on the k8s cluster) Run the processor [start_history.py](start_history.py) `python3 start_history.py`
+
+Note - May need to update to latest mps_database, but for now it is working with the existing logic.The mps_database in this repo is taken from here:
+
+```
+[pnispero@lcls-dev3 mps_database]$ git log -n 1
+commit 954cca5f6c0334d847d9846ac132ce2feea38c7c
+Author: Jeremy Mock <jeremy.a.mock@gmail.com>
+Date:   Tue Jul 4 13:29:47 2023 -0700
+
+    get rid of runtime database
+[pnispero@lcls-dev3 mps_database]$ pwd
+/sdf/home/p/pnispero/afs_stuff/pnispero/mps/mps_database_new/mps_database
+[pnispero@lcls-dev3 mps_database]$ git remote -v
+origin	git@github.com:slaclab/mps_database.git (fetch)
+origin	git@github.com:slaclab/mps_database.git (push)
+```
 
 ### How to view data in kafka instance
 1. Install kafkacat `sudo apt-get install kafkacat`
