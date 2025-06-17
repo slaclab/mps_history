@@ -1,18 +1,13 @@
 import os
 import struct
 import config, sys, datetime, traceback
+import requests
 from ctypes import *
 from datetime import datetime
 from enum import Enum
 from confluent_kafka import Consumer
 from sqlalchemy import inspect
-""" TEMP """
-# Forced config mps_database to point to the new_mpsdb 
-import sys
-# caution: path[0] is reserved for script path (or '' in REPL)
-# sys.path.insert(1, '/sdf/home/p/pnispero/mps/mps_database_new')
-sys.path.insert(1, '/home/pnispero/mps_history/mps_database/')
-""" TEMP """
+from datetime import datetime
 
 from mps_database.mps_config import MPSConfig, models
 from mps_processor.tools import logger
@@ -27,6 +22,7 @@ class Message:
         self.old_value = old_value
         self.new_value = new_value
         self.aux = aux
+        self.timestamp = None # Will be set after parsing
     
     @classmethod
     def from_binary(cls, binary_data):
@@ -49,6 +45,11 @@ class HistoryMessageType(Enum):
   DigitalChannelType=5     # Change in digital channel
   AnalogChannelType=6      # Change in analog device threshold status
 
+class LogbookTag(str, Enum):
+    Fault="fault-state"
+    Channel="channel"
+    Bypass="bypass"
+
 class HistoryBroker:
     """
     Processes the data from central_nodes by querying the config DB, then sending it to 
@@ -57,7 +58,6 @@ class HistoryBroker:
     def __init__(self):
         self.dev = os.getenv("HISTORY_DEV")
         self.sock = None
-        self.timestamp = 0
         self.logger = logger.Logger(stdout=True, dev=self.dev) # TODO - may need to change filenames
 
         if self.dev:
@@ -67,6 +67,7 @@ class HistoryBroker:
 
         self.connect_conf_db()    
         self.connect_kafka()
+        self.test_elog_connection()
 
     def process_loop(self):
         """
@@ -87,6 +88,13 @@ class HistoryBroker:
                     # Process the message
                     key = msg.key().decode('utf-8') if msg.key() else None
                     
+                    # Get Kafka message timestamp
+                    kafka_timestamp = msg.timestamp()
+                    timestamp_type = kafka_timestamp[0]  # 0=CreateTime, 1=LogAppendTime
+                    timestamp_value = kafka_timestamp[1]  # Timestamp in milliseconds
+                    
+                    # Convert to readable format
+                    timestamp_str = datetime.fromtimestamp(timestamp_value/1000).strftime('%Y-%m-%dT%H:%M:%S.%f')
                     # For the value, try to parse it as your Message struct
                     try:
                         if msg.value():
@@ -94,11 +102,14 @@ class HistoryBroker:
                             message_data = self.parse_message(msg.value())
                             # Print message details
                             print(f"\n--- Message at offset {msg.offset()} ---")
+                            print(f"Timestamp: {timestamp_str} ({timestamp_value}ms)")
                             print(f"Type: {message_data.type}")
                             print(f"ID: {message_data.id}")
                             print(f"Old Value: {message_data.old_value}")
                             print(f"New Value: {message_data.new_value}")
                             print(f"Aux: {message_data.aux}")
+
+                            message_data.timestamp = timestamp_str
                             
                             self.decode_message(message_data)
 
@@ -148,17 +159,70 @@ class HistoryBroker:
         """
         try:
             # List all tables in the database
+            print("== Initialization: Testing sqlite database connection ==")
             inspector = inspect(self.conf_conn.engine)
             tables = inspector.get_table_names()
             print(f"Tables in database: {tables}")
-            
 
-            channel = self.conf_conn.session.query(models.Channel)\
-                        .filter(models.Channel.id==1)\
-                        .first()
             return True
         except Exception as e:
             print(f"Database connection test failed: {e}")
+            return False
+        
+    def test_elog_connection(self):
+        self.elog_user_password = os.getenv("ELOG_USER_PASSWORD")
+        if (self.elog_user_password == None):
+            raise ValueError("Missing environment variable - ELOG_USER_PASSWORD")
+        self.elog_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/entries"
+        self.headers = {"x-vouch-idp-accesstoken": self.elog_user_password}
+        test_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/logbooks/684c71350de278523b9f3daf/tags"
+
+        try:
+            print("== Initialization: Testing elog connection with a simple GET request ==")
+            response = requests.get(test_endpoint, headers=self.headers)
+            
+            # Try to raise for status
+            response.raise_for_status()
+            
+            print(f"Successfully sent to ELOG API: {response.status_code}")
+            print(f"== Ready to write to ELOG API ==")
+            return True
+        except requests.exceptions.HTTPError as http_err:
+            print(f"HTTP Error: {http_err}")
+            
+            # Print detailed response information
+            print(f"Response status code: {response.status_code}")
+            print(f"Response reason: {response.reason}")
+            
+            # Try to get response text (may contain error details)
+            try:
+                print(f"Response text: {response.text}")
+            except:
+                print("Could not get response text")
+            
+            # Try to parse JSON response (may contain error details)
+            try:
+                print(f"Response JSON: {response.json()}")
+            except:
+                print("Response is not valid JSON")
+            
+            print(f"Request URL: {response.request.url}")
+            print(f"Request method: {response.request.method}")
+            print(f"Request headers: {response.request.headers}")
+            print(f"Request body: {response.request.body}")
+            
+            return False
+        except requests.exceptions.ConnectionError as conn_err:
+            print(f"Connection Error: {conn_err}")
+            return False
+        except requests.exceptions.Timeout as timeout_err:
+            print(f"Timeout Error: {timeout_err}")
+            return False
+        except requests.exceptions.RequestException as req_err:
+            print(f"Request Error: {req_err}")
+            return False
+        except Exception as e:
+            print(f"General Error: {e}")
             return False
 
     def parse_message(self, binary_data) -> Message:
@@ -170,6 +234,7 @@ class HistoryBroker:
     
     def connect_kafka(self):
         """Connect to the kafka mps data topic"""
+        print("== Initialization: Testing kafka connection ==")
         sasl_password = os.getenv("KAFKA_PASSWORD")
         if (sasl_password == None):
             raise ValueError("Missing environment variable - KAFKA_PASSWORD")
@@ -198,6 +263,7 @@ class HistoryBroker:
         # Subscribe to topic
         topic = "mps-data-injestion"
         self.consumer.subscribe([topic])
+        print(f"== Ready to consume messages from {topic} kafka ==")
 
     def decode_message(self, message: Message):
         """
@@ -221,13 +287,189 @@ class HistoryBroker:
         return
 
     def send_data(self, data):
-        # TODO: Update this to write to the ELOG backend API
         """
-        Writes processed data to ELOG backend API
+        Writes processed data to ELOG backend API based on the message type
         """
-        print(f"Writing to ELOG (mps-history) logbook thorugh backend API for: {data}")
-        # self.processed_data_queue.put(data)
-        return
+        print(f"Writing to the ELOG (mps-history) logbook through backend API for: {data}")
+        
+        # Extract relevant information from the data
+        data_type = data.get('type', 'unknown')
+        timestamp = data.get('timestamp', '0')
+        logbook_tag = None
+        # Build title and text based on data type
+        if data_type == 'bypass':
+            bypass_info = data.get('bypass', {})
+            bypass_type = bypass_info.get('type', 'unknown')
+            
+            # Different handling based on bypass type
+            if bypass_type == 'fault':
+                description = bypass_info.get('description', 'No description')
+                expiration = bypass_info.get('expiration', 'No expiration')
+                title = f"MPS Bypass: {description}"
+                text = f"Bypass Type: Fault\nExpiration: {expiration}\nTimestamp: {timestamp}"
+                if 'new_state' in data:
+                    text += f"\nNew State: {data['new_state']}"
+                    
+            elif bypass_type == 'application':
+                card_number = bypass_info.get('card_number', 'Unknown')
+                crate_loc = bypass_info.get('crate_loc', 'Unknown')
+                expiration = bypass_info.get('expiration', 'No expiration')
+                title = f"MPS Bypass: Application Card {card_number}, Crate {crate_loc}"
+                text = f"Bypass Type: Application Card Number: {card_number}\n Crate Location: {crate_loc}\nExpiration: {expiration}\nTimestamp: {timestamp}"
+                
+            else:
+                title = f"MPS Bypass: {bypass_type}"
+                text = f"Bypass Details: {str(bypass_info)}\nTimestamp: {timestamp}"
+
+            logbook_tag = LogbookTag.Bypass
+                
+        elif data_type == 'channel':
+            channel_info = data.get('channel', {})
+            channel_name = channel_info.get('name', 'Unknown')
+            old_state = data.get('old_state', 'Unknown')
+            new_state = data.get('new_state', 'Unknown')
+            
+            title = f"MPS Channel Change: {channel_name}"
+            text = (f"Channel: {channel_name} (#{channel_info.get('number', 'Unknown')})\n"
+                    f"Card: {channel_info.get('card_number', 'Unknown')}\n"
+                    f"Location: {channel_info.get('crate_loc', 'Unknown')}\n"
+                    f"Old State: {old_state}\n"
+                    f"New State: {new_state}\n"
+                    f"Timestamp: {timestamp}")
+            logbook_tag = LogbookTag.Channel
+                    
+        elif data_type == 'fault':
+            fault_info = data.get('fault', {})
+            fault_id = fault_info.get('id', 'Unknown')
+            description = fault_info.get('description', 'No description')
+            old_state = data.get('old_state', 'Unknown')
+            new_state = data.get('new_state', 'Unknown')
+            
+            title = f"MPS Fault State Change: {description}"
+            
+            # Format the beams information if available
+            beams_text = ""
+            if 'beams' in fault_info and fault_info['beams']:
+                beams_text = "Affected Beams:\n"
+                for beam in fault_info['beams']:
+                    beams_text += f"- {beam.get('class', 'Unknown')} → {beam.get('destination', 'Unknown')}\n"
+            
+            text = (f"Fault ID: {fault_id}\n"
+                    f"Description: {description}\n"
+                    f"Old State: {old_state}\n"
+                    f"New State: {new_state}\n"
+                    f"Active: {fault_info.get('active', 'Unknown')}\n"
+                    f"{beams_text}\n"
+                    f"Timestamp: {timestamp}")
+            logbook_tag = LogbookTag.Fault
+        else:
+            # Generic handler for other types
+            title = f"MPS Event: {data_type}"
+            text = f"Event details: {str(data)}"
+
+
+        try:
+            # Initialize with current date/time as fallback
+            event_at = datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+            summary_date = datetime.now().strftime('%Y-%m-%d')
+            
+            # Try to parse the timestamp from the data
+            if timestamp and timestamp != '0':
+                # Debug the timestamp format
+                print(f"Parsing timestamp: '{timestamp}'")
+                
+                try:
+                    # Assume timestamp is in 'YYYY-MM-DD HH:MM:SS.ffffff' format
+                    dt = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%f')
+                    
+                    # Format event_at to ISO 8601 with truncated microseconds
+                    event_at = dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+                    
+                    # Format summary_date as just the date part
+                    summary_date = dt.strftime('%Y-%m-%d')
+                    
+                    print(f"Successfully parsed timestamp to: {event_at} and date: {summary_date}")
+                except ValueError as ve:
+                    # Try alternative format without microseconds
+                    try:
+                        dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+                        event_at = dt.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+                        summary_date = dt.strftime('%Y-%m-%d')
+                        print(f"Parsed timestamp without microseconds: {event_at} and date: {summary_date}")
+                    except Exception as e2:
+                        print(f"Failed to parse timestamp with second format: {e2}")
+        except Exception as e:
+            print(f"Error handling timestamp: {e}")
+
+        # Construct the payload
+        payload = {
+            "logbooks": ["684c71350de278523b9f3daf"],
+            "title": title,
+            "text": text,
+            "note": "",
+            "tags": [logbook_tag],
+            "attachments": [],
+            # "summarizes": { # We can skip this field
+            #     "shiftId": "",
+            #     "date": summary_date
+            # },
+            "eventAt": event_at,
+            "userIdsToNotify": []
+        }
+        print(f"Writing this payload to ELOG: {payload}")
+
+        # Send the request
+        try:
+            print(f"Sending request to: {self.elog_endpoint}")
+            print(f"Headers: {self.headers}")
+            response = requests.post(self.elog_endpoint, headers=self.headers, json=payload)
+            
+            print(f"Response status code: {response.status_code}")
+            print(f"Response headers: {response.headers}")
+            
+            # Try to raise for status
+            response.raise_for_status()
+            
+            print(f"Successfully sent to ELOG API: {response.status_code}")
+            return True
+        except requests.exceptions.HTTPError as http_err:
+            print(f"HTTP Error: {http_err}")
+            
+            # Print detailed response information
+            print(f"Response status code: {response.status_code}")
+            print(f"Response reason: {response.reason}")
+            
+            # Try to get response text (may contain error details)
+            try:
+                print(f"Response text: {response.text}")
+            except:
+                print("Could not get response text")
+            
+            # Try to parse JSON response (may contain error details)
+            try:
+                print(f"Response JSON: {response.json()}")
+            except:
+                print("Response is not valid JSON")
+            
+            print(f"Request URL: {response.request.url}")
+            print(f"Request method: {response.request.method}")
+            print(f"Request headers: {response.request.headers}")
+            print(f"Request body: {response.request.body}")
+            
+            return False
+        except requests.exceptions.ConnectionError as conn_err:
+            print(f"Connection Error: {conn_err}")
+            return False
+        except requests.exceptions.Timeout as timeout_err:
+            print(f"Timeout Error: {timeout_err}")
+            return False
+        except requests.exceptions.RequestException as req_err:
+            print(f"Request Error: {req_err}")
+            return False
+        except Exception as e:
+            print(f"General Error: {e}")
+            print(f"Failed payload: {payload}")
+            return False
 
     def process_channel(self, message: Message):
         """
@@ -264,7 +506,7 @@ class HistoryBroker:
             self.logger.log("SESSION ERROR: Add Channel ", message.to_string())
             print(traceback.format_exc())
             return
-        channel_info = {"type":"channel", "timestamp": str(self.timestamp), "old_state":old_state, "new_state":new_state,\
+        channel_info = {"type":"channel", "timestamp": str(message.timestamp), "old_state":old_state, "new_state":new_state,\
                          "channel": {"number":channel.number, "name":channel.name,"card_number":app_card.number, "crate_loc":crate_loc}}
         return channel_info
 
@@ -313,7 +555,7 @@ class HistoryBroker:
                             .first()[0]
                 beams.append({"class": beam_class, "destination": beam_dest})
             beam_info = {"beams": beams}
-            all_fault_info = {"type":"fault", "timestamp": str(self.timestamp), "old_state":old_state, "new_state":new_state, "fault": {}}
+            all_fault_info = {"type":"fault", "timestamp": str(message.timestamp), "old_state":old_state, "new_state":new_state, "fault": {}}
             all_fault_info['fault'].update(f_info)
             all_fault_info['fault'].update(beam_info)
 
@@ -331,7 +573,7 @@ class HistoryBroker:
         Output:
             bypass_info: ['type': 'bypass', 'timestamp' str, 'new_state': str, 'expiration': str, 'description': str]
         """
-        expiration = datetime.fromtimestamp(message.aux).strftime("%Y-%m-%d %H:%M:%S.%f")
+        expiration = datetime.fromtimestamp(message.aux).strftime('%Y-%m-%dT%H:%M:%S.%f')
         # TODO: Fix issue with timestamp not including precision higher than seconds (i.e. it shows up like 20 secs instead of 20.xxx secs)
         # print(timestamp_secs) # TEMP
         # print(message.aux) # TEMP
@@ -339,18 +581,24 @@ class HistoryBroker:
         try:
             if (message.type == HistoryMessageType.BypassApplicationType.value):
                 # TODO: Fix issue with application not being able to be sent because '-1' isn't allowed
-                bypass_info = {"type":"bypass", "timestamp": str(self.timestamp),
-                "bypass" : {"type":"application", "expiration":expiration, "card_number":message.id}}
+                # Get crate id, then get crate location
+                crate_id = self.conf_conn.session.query(models.ApplicationCard.crate_id)\
+                .filter(models.ApplicationCard.id==message.id)
+                crate_loc = self.conf_conn.session.query(models.Crate)\
+                .filter(models.Crate.id==crate_id)\
+                .first().location
+                bypass_info = {"type":"bypass", "timestamp": str(message.timestamp),
+                "bypass" : {"type":"application", "expiration":expiration, "card_number":message.id, "crate_loc": crate_loc}}
             elif (message.type == HistoryMessageType.BypassAnalogType.value):
                 fault_name = self.conf_conn.session.query(models.Fault.name)\
                 .filter(models.Fault.id==message.id).first()[0]
-                bypass_info = {"type":"bypass", "timestamp": str(self.timestamp),
+                bypass_info = {"type":"bypass", "timestamp": str(message.timestamp),
                 "bypass" : {"type":"fault", "expiration":expiration, "description":fault_name}}
             else: # Digital
                 new_state = self.get_fault_state_from_fault(message.new_value)
                 fault_name = self.conf_conn.session.query(models.Fault.name)\
                 .filter(models.Fault.id==message.id).first()[0]
-                bypass_info = {"type":"bypass", "timestamp": str(self.timestamp), "new_state":new_state,
+                bypass_info = {"type":"bypass", "timestamp": str(message.timestamp), "new_state":new_state,
                 "bypass" : {"type":"fault", "expiration":expiration, "description":fault_name}}
         except:
             self.logger.log("SESSION ERROR: Add Bypass ", message.to_string())
