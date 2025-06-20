@@ -92,6 +92,8 @@ def create_socket(host, env, conf_conn):
                     [HistoryMessageType.BypassAnalogType.value, 38, 0, 0, cur_time + 40],\
                     [HistoryMessageType.BypassApplicationType.value, 1, 0, 0, cur_time + 30]]
 
+        # s.sendall(struct.pack('5I', data_set[1][0], data_set[1][1], data_set[1][2], data_set[1][3], data_set[1][4]))
+        # return """ TEMP"""
         # send same data 1 times over 
         # TODO: You can increase the for loop number for testing"
         for i in range(1): # 6 packets send

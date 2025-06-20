@@ -40,3 +40,7 @@ curl -X 'POST' \
   "name": "channel",
   "description": "Channel state change"
 }'
+
+GET request for tags of MPS-HISTORY logbook
+NOTE - You have to use the id, not the tag name for making new entries associated with tags.
+{"id":"5723c868-0b39-4be9-ae08-9d4e5cd8f86f","name":"bypass","description":"Tag for bypasses (Digital, Analog, or Application Card)","logbook":{"id":"684c71350de278523b9f3daf","name":"mps-history"}},{"id":"803bf78d-a718-419d-bd81-979bee35cf54","name":"fault-state","description":"Fault state change","logbook":{"id":"684c71350de278523b9f3daf","name":"mps-history"}},{"id":"a45b3865-0e31-4083-be08-0b69274096a8","name":"channel","description":"Channel state change","logbook":{"id":"684c71350de278523b9f3daf","name":"mps-history"}},

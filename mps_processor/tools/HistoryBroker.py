@@ -46,9 +46,10 @@ class HistoryMessageType(Enum):
   AnalogChannelType=6      # Change in analog device threshold status
 
 class LogbookTag(str, Enum):
-    Fault="fault-state"
-    Channel="channel"
-    Bypass="bypass"
+    # Theese are the id of the tags, and they can be found in the README.md
+    Fault="803bf78d-a718-419d-bd81-979bee35cf54"
+    Channel="a45b3865-0e31-4083-be08-0b69274096a8"
+    Bypass="5723c868-0b39-4be9-ae08-9d4e5cd8f86f"
 
 class HistoryBroker:
     """
@@ -144,7 +145,7 @@ class HistoryBroker:
             test_successful = self.test_database_connection()
             
             if test_successful:
-                print("Successfully connected to MPS database and verified access")
+                print("== Successfully connected to MPS database and verified access ==")
             else:
                 raise Exception("Database connection test failed")
         except Exception as e:
@@ -306,17 +307,21 @@ class HistoryBroker:
                 description = bypass_info.get('description', 'No description')
                 expiration = bypass_info.get('expiration', 'No expiration')
                 title = f"MPS Bypass: {description}"
-                text = f"Bypass Type: Fault\nExpiration: {expiration}\nTimestamp: {timestamp}"
+                text = (f"<b>Expiration</b>: {expiration}<br>"
+                        f"<b>Timestamp</b>: {timestamp}<br>")
                 if 'new_state' in data:
-                    text += f"\nNew State: {data['new_state']}"
-                    
+                    text += f"<b>New State</b>: {data['new_state']}"
+                text += "</p>"
+
             elif bypass_type == 'application':
                 card_number = bypass_info.get('card_number', 'Unknown')
                 crate_loc = bypass_info.get('crate_loc', 'Unknown')
                 expiration = bypass_info.get('expiration', 'No expiration')
                 title = f"MPS Bypass: Application Card {card_number}, Crate {crate_loc}"
-                text = f"Bypass Type: Application Card Number: {card_number}\n Crate Location: {crate_loc}\nExpiration: {expiration}\nTimestamp: {timestamp}"
-                
+                text = (f"<b>Expiration</b>: {expiration}<br>"
+                        f"<b>Card Number</b>: {card_number}<br>"
+                        f"<b>Crate Location</b>: {crate_loc}<br>"
+                        f"<b>Timestamp</b>: {timestamp}</p>")                
             else:
                 title = f"MPS Bypass: {bypass_type}"
                 text = f"Bypass Details: {str(bypass_info)}\nTimestamp: {timestamp}"
@@ -330,12 +335,12 @@ class HistoryBroker:
             new_state = data.get('new_state', 'Unknown')
             
             title = f"MPS Channel Change: {channel_name}"
-            text = (f"Channel: {channel_name} (#{channel_info.get('number', 'Unknown')})\n"
-                    f"Card: {channel_info.get('card_number', 'Unknown')}\n"
-                    f"Location: {channel_info.get('crate_loc', 'Unknown')}\n"
-                    f"Old State: {old_state}\n"
-                    f"New State: {new_state}\n"
-                    f"Timestamp: {timestamp}")
+            text = (f"<p><b>Channel</b>: {channel_name}<br>"
+                    f"<b>Old State</b>: {old_state}<br>"
+                    f"<b>New State</b>: {new_state}<br>"
+                    f"<b>Card</b>: {channel_info.get('card_number', 'Unknown')}<br>"
+                    f"<b>Location</b>: {channel_info.get('crate_loc', 'Unknown')}<br>"
+                    f"<b>Timestamp</b>: {timestamp}</p>")
             logbook_tag = LogbookTag.Channel
                     
         elif data_type == 'fault':
@@ -350,17 +355,16 @@ class HistoryBroker:
             # Format the beams information if available
             beams_text = ""
             if 'beams' in fault_info and fault_info['beams']:
-                beams_text = "Affected Beams:\n"
+                beams_text = "<b>Affected Beam Destinations</b>:<ol>"
                 for beam in fault_info['beams']:
-                    beams_text += f"- {beam.get('class', 'Unknown')} → {beam.get('destination', 'Unknown')}\n"
-            
-            text = (f"Fault ID: {fault_id}\n"
-                    f"Description: {description}\n"
-                    f"Old State: {old_state}\n"
-                    f"New State: {new_state}\n"
-                    f"Active: {fault_info.get('active', 'Unknown')}\n"
-                    f"{beams_text}\n"
-                    f"Timestamp: {timestamp}")
+                    beams_text += f"<li>{beam.get('destination', 'Unknown')} -> {beam.get('class', 'Unknown')}</li>"
+                beams_text += "</ol>"
+            text = (f"<p><b>Description</b>: {description}<br>"
+                    f"<b>Old State</b>: {old_state}<br>"
+                    f"<b>New State</b>: {new_state}<br>"
+                    f"<b>Active</b>: {fault_info.get('active', 'Unknown')}<br>"
+                    f"{beams_text}"
+                    f"<b>Timestamp</b>: {timestamp}")
             logbook_tag = LogbookTag.Fault
         else:
             # Generic handler for other types
@@ -407,7 +411,7 @@ class HistoryBroker:
             "title": title,
             "text": text,
             "note": "",
-            "tags": [logbook_tag],
+            "tags": [logbook_tag.value],
             "attachments": [],
             # "summarizes": { # We can skip this field
             #     "shiftId": "",
