@@ -1,5 +1,5 @@
 import argparse
-from mps_processor.tools import HistoryBroker
+from mps_processor import HistoryBroker
 def main():
     parser = argparse.ArgumentParser(description='Receive MPS history messages')
     parser.add_argument('--port', metavar='port', type=int, nargs='?', help='server port (default=3356)')

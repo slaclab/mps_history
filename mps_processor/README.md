@@ -3,6 +3,16 @@ A barebones receiver of data from the mps central nodes through UDP.
 Then sends the raw data directly to the kafka message brokers of the ELOG. 
 Where it will later be processed and written to the ELOG database.
 
+## How to Deploy (on k8s cluster)
+1. kubectl -n mps-history apply -f mps_processor/deployment
+2. (You only need to add this secret one time, this is for the image to be pulled to be authorized) 
+kubectl -n mps-history create secret docker-registry github-container-registry \
+  --docker-server=ghcr.io \
+  --docker-username=pnispero \
+  --docker-password=<GITHUB_PAT> \
+  --docker-email=pnispero@slac.stanford.edu
+
+
 ## Mps History Tags
 There are 3 tags which I created manually through a regular curl request (its simple).
 1. fault-state

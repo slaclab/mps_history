@@ -10,7 +10,6 @@ from sqlalchemy import inspect
 from datetime import datetime
 
 from mps_database.mps_config import MPSConfig, models
-from mps_processor.tools import logger
 from sqlalchemy import select
 
 import struct
@@ -59,12 +58,12 @@ class HistoryBroker:
     def __init__(self):
         self.dev = os.getenv("HISTORY_DEV")
         self.sock = None
-        self.logger = logger.Logger(stdout=True, dev=self.dev) # TODO - may need to change filenames
+        self.elog_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/entries"
 
-        if self.dev:
-            self.default_dbs = config.db_info["dev-rhel7"]
-        else:
-            self.default_dbs = config.db_info["test"]
+        if self.dev: # This will point to the container filesystem with the config baked in
+            self.default_dbs = config.db_info["container-dev"]
+        else: # TODO - make this production but for container as well
+            self.default_dbs = config.db_info["container-dev"] # Temp set to container-dev for now
 
         self.connect_conf_db()    
         self.connect_kafka()
@@ -150,7 +149,7 @@ class HistoryBroker:
                 raise Exception("Database connection test failed")
         except Exception as e:
             print(e)
-            self.logger.log("DB ERROR: Unable to Connect to Database ", str(db_file))
+            print("DB ERROR: Unable to Connect to Database ", str(db_file))
             exit()
         return    
     
@@ -174,7 +173,6 @@ class HistoryBroker:
         self.elog_user_password = os.getenv("ELOG_USER_PASSWORD")
         if (self.elog_user_password == None):
             raise ValueError("Missing environment variable - ELOG_USER_PASSWORD")
-        self.elog_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/entries"
         self.headers = {"x-vouch-idp-accesstoken": self.elog_user_password}
         test_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/logbooks/684c71350de278523b9f3daf/tags"
 
@@ -279,7 +277,7 @@ class HistoryBroker:
         elif (message.type == HistoryMessageType.DigitalChannelType.value or message.type == HistoryMessageType.AnalogChannelType.value): # ChannelType (DigitalChannel or AnalogChannel)
             data = self.process_channel(message)
         else:
-            self.logger.log("DATA ERROR: Bad Message Type", message.to_string())
+            print("DATA ERROR: Bad Message Type", message.to_string())
             return
         print(data) # TEMP
 
@@ -307,7 +305,7 @@ class HistoryBroker:
                 description = bypass_info.get('description', 'No description')
                 expiration = bypass_info.get('expiration', 'No expiration')
                 title = f"MPS Bypass: {description}"
-                text = (f"<b>Expiration</b>: {expiration}<br>"
+                text = (f"<p><b>Expiration</b>: {expiration}<br>"
                         f"<b>Timestamp</b>: {timestamp}<br>")
                 if 'new_state' in data:
                     text += f"<b>New State</b>: {data['new_state']}"
@@ -318,7 +316,7 @@ class HistoryBroker:
                 crate_loc = bypass_info.get('crate_loc', 'Unknown')
                 expiration = bypass_info.get('expiration', 'No expiration')
                 title = f"MPS Bypass: Application Card {card_number}, Crate {crate_loc}"
-                text = (f"<b>Expiration</b>: {expiration}<br>"
+                text = (f"<p><b>Expiration</b>: {expiration}<br>"
                         f"<b>Card Number</b>: {card_number}<br>"
                         f"<b>Crate Location</b>: {crate_loc}<br>"
                         f"<b>Timestamp</b>: {timestamp}</p>")                
@@ -370,7 +368,6 @@ class HistoryBroker:
             # Generic handler for other types
             title = f"MPS Event: {data_type}"
             text = f"Event details: {str(data)}"
-
 
         try:
             # Initialize with current date/time as fallback
@@ -507,7 +504,7 @@ class HistoryBroker:
             else: # analog
                     old_state, new_state = hex(message.old_value), hex(message.new_value) 
         except:
-            self.logger.log("SESSION ERROR: Add Channel ", message.to_string())
+            print("SESSION ERROR: Add Channel ", message.to_string())
             print(traceback.format_exc())
             return
         channel_info = {"type":"channel", "timestamp": str(message.timestamp), "old_state":old_state, "new_state":new_state,\
@@ -564,7 +561,7 @@ class HistoryBroker:
             all_fault_info['fault'].update(beam_info)
 
         except Exception as e:
-            self.logger.log("SESSION ERROR: Add Fault ", message.to_string())
+            print("SESSION ERROR: Add Fault ", message.to_string())
             print(traceback.format_exc())
             return
         return all_fault_info
@@ -605,7 +602,7 @@ class HistoryBroker:
                 bypass_info = {"type":"bypass", "timestamp": str(message.timestamp), "new_state":new_state,
                 "bypass" : {"type":"fault", "expiration":expiration, "description":fault_name}}
         except:
-            self.logger.log("SESSION ERROR: Add Bypass ", message.to_string())
+            print("SESSION ERROR: Add Bypass ", message.to_string())
             return
         return bypass_info
 
@@ -619,8 +616,8 @@ class HistoryBroker:
         return fault_state.name
     
 def main():
-    hist = HistoryBroker()
-    hist.process_queue()
+    main_processor = HistoryBroker()
+    main_processor.process_loop()
 
     return
 

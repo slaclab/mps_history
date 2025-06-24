@@ -1,4 +1,18 @@
 db_info  = {
+    "container-dev":{  # Points to files baked into the container. please see the Dockerfile in mps_processor for more info
+        "file_paths":{
+            "config":"/app/mps_configuration",
+            "runtime":None
+        },
+        "file_names":{
+            "config":"test.db",
+            "history":"mps_gun_history_7_12_23.db",
+            "runtime":None
+        },
+        "logger":{
+            "log_directory":"/app/test_logs"
+        }
+    },
     "dev-srv09":{
         "file_paths":{
             #"config":"/afs/slac/g/lcls/physics/mps_configuration/current",
@@ -142,20 +156,6 @@ db_info  = {
         "logger":{
             "log_directory":"/home/pnispero/mps_history/test_logs/"
         }
-        # lking filepaths
-        # "file_paths":{
-        #     "config":"/Users/lking/Documents/Projects/mps_database/mps_database",
-        #     "history":"/Users/lking/Documents/Projects/mps_database/mps_database",
-        #     "runtime":None
-        # },
-        # "file_names":{
-        #     "config":"mps_config_imported.db",
-        #     "history":"mps_gun_history.db",
-        #     "runtime":None
-        # },
-        # "logger":{
-        #     "log_directory":"/Users/lking/Documents/Projects/mps_database/test_logs/mps_history-"
-        # }
     },
     "prod":
     {
