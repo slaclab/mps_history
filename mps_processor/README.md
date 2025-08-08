@@ -1,9 +1,5 @@
-# MPS History Collector
-A barebones receiver of data from the mps central nodes through UDP. 
-Then sends the raw data directly to the kafka message brokers of the ELOG. 
-Where it will later be processed and written to the ELOG database.
-
-## How to Deploy (on k8s cluster)
+## How to Deploy (The mps processor runs on a k8s cluster)
+0. At the moment we are running the mps processor in the `accel-webapp-dev` cluster
 1. kubectl -n mps-history apply -f mps_processor/deployment
 2. (You only need to add this secret one time, this is for the image to be pulled to be authorized) 
 kubectl -n mps-history create secret docker-registry github-container-registry \

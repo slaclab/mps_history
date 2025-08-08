@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: s3df-dev-container-ad-group
+spec:
+  storageClassName: sdf-group-ad
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,3 +54,10 @@ spec:
             cpu: "2000m"
       imagePullSecrets:
       - name: github-container-registry
+      volumeMounts:
+        - name: s3df-dev-container-ad-group
+          mountPath: /sdf/group/ad
+      volumes:
+      - name: s3df-dev-container-ad-group
+        persistentVolumeClaim:
+          claimName: s3df-dev-container-ad-group

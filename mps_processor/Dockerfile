@@ -25,5 +25,8 @@ RUN pip install -e /app/mps_database/
 # Add env variable for python scripts to stream live
 ENV PYTHONUNBUFFERED=1
 
+# Remove existing empty /afs then Add sym link to /afs
+RUN rm -rf /afs && ln -s /sdf/group/ad/transition/afs /
+
 # Switch to non-root user
 USER appuser
