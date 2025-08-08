@@ -290,7 +290,7 @@ class HistoryBroker:
         Writes processed data to ELOG backend API based on the message type
         """
         print(f"Writing to the ELOG (mps-history) logbook through backend API for: {data}")
-        
+
         # Extract relevant information from the data
         data_type = data.get('type', 'unknown')
         timestamp = data.get('timestamp', '0')
@@ -304,7 +304,7 @@ class HistoryBroker:
             if bypass_type == 'fault':
                 description = bypass_info.get('description', 'No description')
                 expiration = bypass_info.get('expiration', 'No expiration')
-                title = f"MPS Bypass: {description}"
+                title = f"MPS Bypass: {description}. Expires: {expiration}"
                 text = (f"<p><b>Expiration</b>: {expiration}<br>"
                         f"<b>Timestamp</b>: {timestamp}<br>")
                 if 'new_state' in data:
@@ -315,7 +315,7 @@ class HistoryBroker:
                 card_number = bypass_info.get('card_number', 'Unknown')
                 crate_loc = bypass_info.get('crate_loc', 'Unknown')
                 expiration = bypass_info.get('expiration', 'No expiration')
-                title = f"MPS Bypass: Application Card {card_number}, Crate {crate_loc}"
+                title = f"MPS Bypass: Application Card {card_number}, Crate {crate_loc}. Expires: {expiration}"
                 text = (f"<p><b>Expiration</b>: {expiration}<br>"
                         f"<b>Card Number</b>: {card_number}<br>"
                         f"<b>Crate Location</b>: {crate_loc}<br>"
@@ -332,7 +332,7 @@ class HistoryBroker:
             old_state = data.get('old_state', 'Unknown')
             new_state = data.get('new_state', 'Unknown')
             
-            title = f"MPS Channel Change: {channel_name}"
+            title = f"MPS Channel Change: {channel_name}. {old_state} -> {new_state}"
             text = (f"<p><b>Channel</b>: {channel_name}<br>"
                     f"<b>Old State</b>: {old_state}<br>"
                     f"<b>New State</b>: {new_state}<br>"
@@ -348,7 +348,7 @@ class HistoryBroker:
             old_state = data.get('old_state', 'Unknown')
             new_state = data.get('new_state', 'Unknown')
             
-            title = f"MPS Fault State Change: {description}"
+            title = f"MPS Fault State Change: {description}. {old_state} -> {new_state}"
             
             # Format the beams information if available
             beams_text = ""

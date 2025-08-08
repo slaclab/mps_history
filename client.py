@@ -85,7 +85,8 @@ def create_socket(host, env, conf_conn):
         print(cur_time)
 
         # send fault
-        data_set = [[HistoryMessageType.FaultStateType.value, 17, 58, 59, 1063],\
+        data_set = [[HistoryMessageType.FaultStateType.value, 17, 59, 58, 1063],\
+                    [HistoryMessageType.FaultStateType.value, 17, 58, 59, 1063],\
                     [HistoryMessageType.DigitalChannelType.value, 1, 0, 1, 0],\
                     [HistoryMessageType.AnalogChannelType.value, 34, 0, 1, 0],\
                     [HistoryMessageType.BypassDigitalType.value, 378, 0, 10, cur_time + 50],\
@@ -96,7 +97,7 @@ def create_socket(host, env, conf_conn):
         # return """ TEMP"""
         # send same data 1 times over 
         # TODO: You can increase the for loop number for testing"
-        for i in range(1): # 6 packets send
+        for i in range(1): # 7 packets send
             for data in data_set:
                 s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
                 time.sleep(0.000001) # 1 us between each send
