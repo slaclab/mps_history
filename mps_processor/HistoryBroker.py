@@ -4,6 +4,7 @@ import config, sys, datetime, traceback
 import requests
 from ctypes import *
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from enum import Enum
 from confluent_kafka import Consumer
 from sqlalchemy import inspect
@@ -40,7 +41,7 @@ class HistoryMessageType(Enum):
   FaultStateType=1         # Fault change state (Faulted/Not Faulted)
   BypassDigitalType=2      # Bypass digital fault
   BypassAnalogType=3       # Bypass analog fault
-  BypassApplicationType=4  # Bypass analog fault
+  BypassApplicationType=4  # Bypass applicaion card
   DigitalChannelType=5     # Change in digital channel
   AnalogChannelType=6      # Change in analog device threshold status
 
@@ -55,17 +56,12 @@ class HistoryBroker:
     Processes the data from central_nodes by querying the config DB, then sending it to 
     Kafka -> kubernetes infrastructure -> history DB
     """
-    def __init__(self):
+    def __init__(self, config_db_filepath: str):
         self.dev = os.getenv("HISTORY_DEV")
         self.sock = None
         self.elog_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/entries"
 
-        if self.dev: # This will point to the container filesystem with the config baked in
-            self.default_dbs = config.db_info["container-dev"]
-        else: # TODO - make this production but for container as well
-            self.default_dbs = config.db_info["container-dev"] # Temp set to container-dev for now
-
-        self.connect_conf_db()    
+        self.connect_conf_db(config_db_filepath)    
         self.connect_kafka()
         self.test_elog_connection()
 
@@ -94,7 +90,7 @@ class HistoryBroker:
                     timestamp_value = kafka_timestamp[1]  # Timestamp in milliseconds
                     
                     # Convert to readable format
-                    timestamp_str = datetime.fromtimestamp(timestamp_value/1000).strftime('%Y-%m-%dT%H:%M:%S.%f')
+                    timestamp_str = datetime.fromtimestamp(timestamp_value/1000, tz=ZoneInfo("America/Los_Angeles")).strftime('%Y-%m-%d %I:%M:%S %p')
                     # For the value, try to parse it as your Message struct
                     try:
                         if msg.value():
@@ -130,15 +126,13 @@ class HistoryBroker:
             # Leave group and commit final offsets
             self.consumer.close()
     
-    def connect_conf_db(self):
+    def connect_conf_db(self, config_db_filepath: str):
         """
         Creates a interactable connection to the configuration database
         """
-        db_file = self.default_dbs["file_paths"]["config"] + "/" + self.default_dbs["file_names"]["config"]
-        print(db_file)
         try:
             # Create connection
-            self.conf_conn = MPSConfig(db_file)
+            self.conf_conn = MPSConfig(config_db_filepath)
             
             # Test connection by running a simple query
             test_successful = self.test_database_connection()
@@ -146,10 +140,10 @@ class HistoryBroker:
             if test_successful:
                 print("== Successfully connected to MPS database and verified access ==")
             else:
-                raise Exception("Database connection test failed")
+                raise Exception("Database connection test failed - ", config_db_filepath)
         except Exception as e:
             print(e)
-            print("DB ERROR: Unable to Connect to Database ", str(db_file))
+            print("DB ERROR: Unable to Connect to Database ", str(config_db_filepath))
             exit()
         return    
     
@@ -304,7 +298,7 @@ class HistoryBroker:
             if bypass_type == 'fault':
                 description = bypass_info.get('description', 'No description')
                 expiration = bypass_info.get('expiration', 'No expiration')
-                title = f"MPS Bypass: {description}. Expires: {expiration}"
+                title = f"MPS New Bypass: {description}. Expires at: {expiration}"
                 text = (f"<p><b>Expiration</b>: {expiration}<br>"
                         f"<b>Timestamp</b>: {timestamp}<br>")
                 if 'new_state' in data:
@@ -315,13 +309,13 @@ class HistoryBroker:
                 card_number = bypass_info.get('card_number', 'Unknown')
                 crate_loc = bypass_info.get('crate_loc', 'Unknown')
                 expiration = bypass_info.get('expiration', 'No expiration')
-                title = f"MPS Bypass: Application Card {card_number}, Crate {crate_loc}. Expires: {expiration}"
+                title = f"MPS New Bypass: Application Card {card_number}, Crate {crate_loc}. Expires at: {expiration}"
                 text = (f"<p><b>Expiration</b>: {expiration}<br>"
                         f"<b>Card Number</b>: {card_number}<br>"
                         f"<b>Crate Location</b>: {crate_loc}<br>"
                         f"<b>Timestamp</b>: {timestamp}</p>")                
             else:
-                title = f"MPS Bypass: {bypass_type}"
+                title = f"MPS New Bypass: {bypass_type}"
                 text = f"Bypass Details: {str(bypass_info)}\nTimestamp: {timestamp}"
 
             logbook_tag = LogbookTag.Bypass
@@ -574,11 +568,7 @@ class HistoryBroker:
         Output:
             bypass_info: ['type': 'bypass', 'timestamp' str, 'new_state': str, 'expiration': str, 'description': str]
         """
-        expiration = datetime.fromtimestamp(message.aux).strftime('%Y-%m-%dT%H:%M:%S.%f')
-        # TODO: Fix issue with timestamp not including precision higher than seconds (i.e. it shows up like 20 secs instead of 20.xxx secs)
-        # print(timestamp_secs) # TEMP
-        # print(message.aux) # TEMP
-        # print(expiration) # TEMP
+        expiration = datetime.fromtimestamp(message.aux, tz=ZoneInfo("America/Los_Angeles")).strftime('%Y-%m-%d %I:%M:%S %p')
         try:
             if (message.type == HistoryMessageType.BypassApplicationType.value):
                 # TODO: Fix issue with application not being able to be sent because '-1' isn't allowed
