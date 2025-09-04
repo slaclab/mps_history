@@ -496,7 +496,11 @@ class HistoryBroker:
                 if (message.new_value > 0):
                     new_state = digital_channel.o_name
             else: # analog
-                    old_state, new_state = hex(message.old_value), hex(message.new_value) 
+                    old_state = "Is Ok" if message.old_value == 0 else "Is Faulted"
+                    new_state = "Is Ok" if message.new_value == 0 else "Is Faulted"
+                    old_state += " (" + hex(message.old_value) + ")"
+                    new_state += " (" + hex(message.new_value) + ")"
+
         except:
             print("SESSION ERROR: Add Channel ", message.to_string())
             print(traceback.format_exc())

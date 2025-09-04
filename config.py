@@ -1,5 +1,5 @@
 db_info  = {
-    "container-dev":{  # Points to files baked into the container. please see the Dockerfile in mps_processor for more info
+    "container-dev":{  
         "file_paths":{
             "config":"/afs/slac/g/lcls/physics/mps_configuration/current",
             "runtime":None

@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
       - name: mps-processor
-        image: ghcr.io/slaclab/mps-history-processor:latest
+        image: ghcr.io/slaclab/mps-history-processor:dev
         imagePullPolicy: Always
         command: ["/bin/sh"]
         args:
