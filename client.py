@@ -39,6 +39,7 @@ def main():
     """
     #dev should be changed to True if being run on dev-srv09
     dev = False
+    prod = True
     #restart is True if you want tables to be wiped and recreated 
     #THIS DELETES THE CONFIG TABLE SOMEHOW
     restart = False
@@ -46,12 +47,15 @@ def main():
     if dev:
         env = config.db_info["dev-srv09"]
         host = "dev-srv09"
+    elif prod:
+        env = config.db_info["mccas0"]
+        host = "mccas0"
     else:
         env = config.db_info["test"]
         host = '127.0.0.1'
     db_path = env["file_paths"]["history"]
 
-    conf_conn = MPSConfig(config.db_info["dev-srv09"]["file_paths"]["config"] + '/' + config.db_info["dev-srv09"]["file_names"]["config"]) # connect to config db
+    conf_conn = MPSConfig(config.db_info[host]["file_paths"]["config"] + '/' + config.db_info[host]["file_names"]["config"]) # connect to config db
 
     """ TEMP """
     create_socket(host, env, conf_conn)
@@ -85,19 +89,20 @@ def create_socket(host, env, conf_conn):
         print(cur_time)
 
         # send fault
-        data_set = [[HistoryMessageType.FaultStateType.value, 17, 59, 58, 1063],\
-                    [HistoryMessageType.FaultStateType.value, 17, 58, 59, 1063],\
-                    [HistoryMessageType.DigitalChannelType.value, 1, 0, 1, 0],\
-                    [HistoryMessageType.AnalogChannelType.value, 34, 0, 1, 0],\
-                    [HistoryMessageType.BypassDigitalType.value, 378, 0, 10, cur_time + 50],\
-                    [HistoryMessageType.BypassAnalogType.value, 38, 0, 0, cur_time + 40],\
-                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 0, cur_time + 30]]
+        data_set = [[HistoryMessageType.FaultStateType.value, 1, 1, 2, 1063],\
+                    [HistoryMessageType.FaultStateType.value, 1, 2, 1, 1063],\
+                    [HistoryMessageType.DigitalChannelType.value, 3, 0, 1, 0],\
+                    [HistoryMessageType.AnalogChannelType.value, 5, 0, 1, 0],\
+                    [HistoryMessageType.AnalogChannelType.value, 6, 0, 2, 0],\
+                    [HistoryMessageType.BypassDigitalType.value, 3, 0, 1, cur_time + 50],\
+                    [HistoryMessageType.BypassAnalogType.value, 5, 1, 0, cur_time + 40],\
+                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 1, cur_time + 30]]
 
         # s.sendall(struct.pack('5I', data_set[1][0], data_set[1][1], data_set[1][2], data_set[1][3], data_set[1][4]))
         # return """ TEMP"""
         # send same data 1 times over 
-        # TODO: You can increase the for loop number for testing"
-        for i in range(1): # 7 packets send
+        num_times_to_send = 1
+        for i in range(num_times_to_send): # 7 packets send
             for data in data_set:
                 s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
                 time.sleep(0.000001) # 1 us between each send

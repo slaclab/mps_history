@@ -498,8 +498,6 @@ class HistoryBroker:
             else: # analog
                     old_state = "Is Ok" if message.old_value == 0 else "Is Faulted"
                     new_state = "Is Ok" if message.new_value == 0 else "Is Faulted"
-                    old_state += " (" + hex(message.old_value) + ")"
-                    new_state += " (" + hex(message.new_value) + ")"
 
         except:
             print("SESSION ERROR: Add Channel ", message.to_string())
@@ -545,7 +543,7 @@ class HistoryBroker:
             for mitigation_id in mitigation_ids:
                 beam_ids = self.conf_conn.session.query(models.Mitigation)\
                             .filter(models.Mitigation.id==mitigation_id)\
-                            .first()
+                            .first()                   
                 beam_dest = self.conf_conn.session.query(models.BeamDestination.name)\
                             .filter(models.BeamDestination.id==beam_ids.beam_destination.id)\
                             .first()[0] # [0] removes tuple structure

@@ -85,63 +85,6 @@ db_info  = {
         #     "log_directory":"/u/cd/lking/mps/mps_logs/mps_history"
         # }
     },
-    "dev-rhel7":{
-        "file_paths":{
-            #"config":"/afs/slac/g/lcls/physics/mps_configuration/current",
-            "config":"/sdf/home/p/pnispero/mps/mps_history/mps_configuration",
-            "history":"/sdf/home/p/pnispero/mps/mps_history",
-            "runtime":"/u1/lcls/physics/mps_manager"
-        },
-        "file_names":{
-            "config":"test.db", #"mps_config-2023-05-22-a.db",
-            "history":"mps_gun_history_7_12_23.db",
-            "runtime":None
-        },
-        "logger":{
-            "log_directory":"/sdf/home/p/pnispero/mps/mps_history/test_logs/"
-        },
-        "kafka":{
-            "producer_config": {
-                "bootstrap.servers": "172.24.5.197:9094",
-                "security.protocol": "SASL_PLAINTEXT",
-                "sasl.username": "mps-data-injestion-publisher",
-                "sasl.password": "H9MD7vxf9ABPDsKTyxvOtTKL14hCSU8R",
-                "sasl.mechanism": "SCRAM-SHA-512" 
-            },
-            "ip": "172.24.5.197:9094",
-            "topic": "mps-data-injestion",
-            "history_schema" : """
-                                {
-                                    "id": 1,
-                                    "type": "",
-                                    "timestamp": "",
-                                    "old_state": "",
-                                    "new_state": "",
-                                    "channel": {        
-                                        "number": 1,
-                                        "name": "",
-                                        "card_number": 1,
-                                        "crate_loc": ""
-                                    },
-                                    "bypass": {
-                                        "expiration": "",
-                                        "description": ""
-                                    },
-                                    "fault": {
-                                        "id": 1,
-                                        "description": "",
-                                        "beams": [
-                                            {
-                                                "class": "",
-                                                "destination": ""
-                                            }
-                                        ],
-                                        "active": true
-                                    }
-                                }
-                                """
-        }
-    },
     "test":{  # My local pc paths
         "file_paths":{
             "config":"/home/pnispero/mps_history/mps_configuration",
@@ -157,15 +100,16 @@ db_info  = {
             "log_directory":"/home/pnispero/mps_history/test_logs/"
         }
     },
-    "prod":
-    {
+    "mccas0":
+    { # TEMP set config to new mps db
         "file_paths":{
-            "config":"/usr/local/lcls/physics/mps_configuration/current",
+            "config":"/usr/local/lcls/physics/mps_configuration/9999-99-99-z.db",
+            # "config":"/usr/local/lcls/physics/mps_configuration/current",
             "history":"/u1/lcls/tools/mpsHistoryServer/mps_history_server2",
             "runtime":""
         },
         "file_names":{
-            "config":"mps_config-2022-03-21-a.db",
+            "config":"mps_config-9999-99-99-z.db",
             "history":"mps_history.db",
             "runtime":None
         },
