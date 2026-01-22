@@ -53,8 +53,8 @@ class LogbookTag(str, Enum):
 
 class HistoryBroker:
     """
-    Processes the data from central_nodes by querying the config DB, then sending it to 
-    Kafka -> kubernetes infrastructure -> history DB
+    Processes the data from central_nodes by consuming messages from
+    Kafka -> Process -> write to ELOG
     """
     def __init__(self, config_db_filepath: str):
         self.dev = os.getenv("HISTORY_DEV")

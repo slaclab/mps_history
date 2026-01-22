@@ -7,11 +7,24 @@ CXXFLAGS = -Wall -Wextra -O2 -std=c++11
 # Debug flags
 DEBUG_FLAGS = -DDEBUG -g -O0
 
+# ---------------- EPICS / Channel Access (libca) ----------------
+EPICS_BASE      ?= /afs/slac/g/lcls/epics/base/R7.0.3.1-1.0
+EPICS_HOST_ARCH ?= rhel9-x86_64
+
+EPICS_INCLUDES := -I$(EPICS_BASE)/include \
+                  -I$(EPICS_BASE)/include/os/Linux \
+                  -I$(EPICS_BASE)/include/compiler/gcc
+EPICS_LIBDIR   := -L$(EPICS_BASE)/lib/$(EPICS_HOST_ARCH)
+# Recommended so systemd/services can run without LD_LIBRARY_PATH
+EPICS_RPATH    := -Wl,-rpath,$(EPICS_BASE)/lib/$(EPICS_HOST_ARCH)
+EPICS_LIBS     := -lca -lCom
+# ----------------------------------------------------------------
+
 # Path to librdkafka source
 RDKAFKA_PATH = $(HOME)/librdkafka/librdkafka-2.8.0
 
 # Include paths
-INCLUDES = -I$(RDKAFKA_PATH)/src -I$(RDKAFKA_PATH)/src-cpp
+INCLUDES = -I$(RDKAFKA_PATH)/src -I$(RDKAFKA_PATH)/src-cpp $(EPICS_INCLUDES)
 
 # Library Requirements per librdkafka:
 # The GNU toolchain
@@ -23,12 +36,11 @@ INCLUDES = -I$(RDKAFKA_PATH)/src -I$(RDKAFKA_PATH)/src-cpp
 # libzstd-dev (optional, for ZStd compression support)
 # libcurl-dev (optional, for SASL OAUTHBEARER OIDC support)
 
-# Static link librdkafka, dynamic link system libraries
+# Static link librdkafka, dynamic link system libraries + EPICS CA client
 LIBS = $(RDKAFKA_PATH)/src-cpp/librdkafka++.a \
        $(RDKAFKA_PATH)/src/librdkafka.a \
-       -lpthread -lz -lssl -lcrypto -lsasl2 -lzstd -lcurl
-
-# -ldl -lrt
+       -lpthread -lz -lssl -lcrypto -lsasl2 -lzstd -lcurl \
+       $(EPICS_LIBDIR) $(EPICS_RPATH) $(EPICS_LIBS)
 
 # Source files
 SRCS = mps_collector.cpp

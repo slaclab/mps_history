@@ -145,3 +145,6 @@ test_logs/
 
 # mps database
 mps_database/
+
+# Collector passwords
+kafka_password

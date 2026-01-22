@@ -13,7 +13,6 @@ RUN mkdir /app
 COPY mps_processor/ /app/mps_processor
 COPY config.py start_history.py /app/
 COPY mps_database/ /app/mps_database
-COPY mps_configuration/ /app/mps_configuration
 
 # install requirements.txt
 RUN pip install --upgrade pip

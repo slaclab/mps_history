@@ -16,6 +16,11 @@ Reference: https://github.com/confluentinc/librdkafka/blob/master/examples/produ
 #include <unistd.h>
 #include <rdkafkacpp.h>
 #include <arpa/inet.h> // For inet_ntop
+#include <cadef.h> // For EPICS channel access
+#include <chrono>
+#include "json.hpp"
+#include <fstream>
+#include <stdexcept>
 
 enum HistoryMessageType {
   FaultStateType = 1,     // Fault change state (Faulted/Not Faulted)
@@ -82,6 +87,74 @@ private:
   uint64_t bytes_received;
 };
 
+static std::string dir_of(const std::string& path)
+{
+    auto p = path.find_last_of("/\\");
+    return (p == std::string::npos) ? "." : path.substr(0, p);
+}
+
+static std::string join_path(const std::string& baseDir, const std::string& maybeRelative)
+{
+    if (maybeRelative.empty()) return maybeRelative;
+    // absolute path?
+    if (maybeRelative[0] == '/') return maybeRelative;
+    return baseDir + "/" + maybeRelative;
+}
+
+static std::string read_first_line(const std::string& path)
+{
+    std::ifstream in(path);
+    if (!in) throw std::runtime_error("can't open file: " + path);
+    std::string s;
+    std::getline(in, s);
+    return s;
+}
+
+struct Config {
+    std::string brokers, topic;
+    std::string security_protocol, sasl_username, sasl_password, sasl_mechanism;
+    int udp_port = 0;
+    std::string hb_pv;
+    int hb_period_sec = 1;
+};
+
+static Config load_config_json(const std::string& config_path)
+{
+    std::ifstream f(config_path);
+    if (!f) throw std::runtime_error("can't open config: " + config_path);
+
+    nlohmann::json j;
+    f >> j;
+
+    Config c;
+    c.brokers = j.at("brokers").get<std::string>();
+    c.topic   = j.at("topic").get<std::string>();
+
+    c.security_protocol = j.at("security_protocol").get<std::string>();
+    c.sasl_username     = j.at("sasl_username").get<std::string>();
+    c.sasl_mechanism    = j.at("sasl_mechanism").get<std::string>();
+
+    c.udp_port = j.at("udp_port").get<int>();
+
+    c.hb_pv         = j.at("hb_pv").get<std::string>();
+    c.hb_period_sec = j.at("hb_period_sec").get<int>();
+
+    // secret file path: allow relative to config location
+    std::string base = dir_of(config_path);
+    std::string pwfile = j.at("sasl_password_file").get<std::string>();
+    pwfile = join_path(base, pwfile);
+    c.sasl_password = read_first_line(pwfile);
+
+    return c;
+}
+
+void ca_check(int status, const char* what)
+{
+    if (status != ECA_NORMAL) {
+        std::cerr << what << ": " << ca_message(status) << std::endl;
+    }
+}
+
 void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string security_protocol,
                      std::string sasl_username, std::string sasl_password, std::string sasl_mechanism) {
   // Create Kafka configuration
@@ -135,19 +208,12 @@ void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string secur
 }
 
 int main(int argc, char **argv) {
-  if (argc < 8) {
-    std::cerr << "Usage: " << argv[0] << " <bootstrap.servers> <topic> <udp_port> <security_protocol> <sasl_username> <sasl_password> <sasl_mechanism\n";
-    std::cerr << "Example: " << argv[0] << " 172.24.5.197:9094 my_topic 3356 SASL_PLAINTEXT myuser mypassword SCRAM-SHA-512\n";
-    exit(1);
+  if (argc != 2) {
+    std::cerr << "Usage: " << argv[0] << " /full/path/to/config.json\n";
+    std::cerr << "Example: " << argv[0] << " /sdf/home/p/pnispero/mps/mps_history/mps_collector/prod.json\n";
+    return 1;
   }
-
-  std::string brokers = argv[1];
-  std::string topic = argv[2];
-  int udp_port = std::atoi(argv[3]);
-  std::string security_protocol = argv[4];
-  std::string sasl_username = argv[5];
-  std::string sasl_password = argv[6];
-  std::string sasl_mechanism = argv[7];
+  Config cfg = load_config_json(argv[1]);
 
   // Set up signal handlers
   signal(SIGINT, sigterm);
@@ -155,7 +221,7 @@ int main(int argc, char **argv) {
 
   // Configure kafka
   RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
-  configure_kafka(*conf, brokers, security_protocol, sasl_username, sasl_password, sasl_mechanism);
+  configure_kafka(*conf, cfg.brokers, cfg.security_protocol, cfg.sasl_username, cfg.sasl_password, cfg.sasl_mechanism);
 
   // Create producer
   std::string errstr;
@@ -177,7 +243,7 @@ int main(int argc, char **argv) {
   );
   if (err != RdKafka::ERR_NO_ERROR) {
       std::cerr << "Failed to get metadata: " << RdKafka::err2str(err) << std::endl;
-      std::cerr << "Cannot connect to Kafka cluster at " << brokers << std::endl;
+      std::cerr << "Cannot connect to Kafka cluster at " << cfg.brokers << std::endl;
       delete producer;
       delete conf;
       exit(1);
@@ -190,16 +256,16 @@ int main(int argc, char **argv) {
   bool topic_exists = false;
   for (auto topic_it = metadata->topics()->begin(); 
         topic_it != metadata->topics()->end(); ++topic_it) {
-      if ((*topic_it)->topic() == topic) {
+      if ((*topic_it)->topic() == cfg.topic) {
           topic_exists = true;
-          std::cout << "Topic '" << topic << "' exists with " 
+          std::cout << "Topic '" << cfg.topic << "' exists with " 
                   << (*topic_it)->partitions()->size() << " partition(s)" << std::endl;
           break;
       }
   }
   
   if (!topic_exists) {
-      std::cout << "Topic '" << topic << "' does not exist yet, it will be auto-created if enabled" << std::endl;
+      std::cout << "Topic '" << cfg.topic << "' does not exist yet, it will be auto-created if enabled" << std::endl;
   }
 
   // Create UDP socket
@@ -229,7 +295,7 @@ int main(int argc, char **argv) {
   std::memset(&server_addr, 0, sizeof(server_addr));
   server_addr.sin_family = AF_INET;
   server_addr.sin_addr.s_addr = INADDR_ANY;
-  server_addr.sin_port = htons(udp_port);
+  server_addr.sin_port = htons(cfg.udp_port);
 
   if (bind(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
     std::cerr << "Failed to bind socket" << std::endl;
@@ -238,8 +304,8 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  std::cout << "UDP collector started on port " << udp_port 
-            << ", forwarding to Kafka topic: " << topic << std::endl;
+  std::cout << "UDP collector started on port " << cfg.udp_port 
+            << ", forwarding to Kafka topic: " << cfg.topic << std::endl;
 
   // Buffer for incoming messages
   // Important: The buffer is specifically sized for your Message struct
@@ -253,6 +319,26 @@ int main(int argc, char **argv) {
   
   // Statistics tracking
   MessageStats stats;
+
+
+  // Channel access setup
+  chid hb_ch = nullptr;
+
+  ca_check(ca_context_create(ca_enable_preemptive_callback), "ca_context_create");
+
+  // connection handler optional; can pass nullptr
+  ca_check(ca_create_channel(cfg.hb_pv.c_str(), nullptr, nullptr, CA_PRIORITY_DEFAULT, &hb_ch),
+          "ca_create_channel(HB)");
+
+  // wait for name resolution + connect (don’t hang forever)
+  int st = ca_pend_io(2.0);
+  if (st != ECA_NORMAL) {
+      std::cerr << "WARNING: heartbeat PV " << cfg.hb_pv <<" not connected: " << ca_message(st) << std::endl;
+      // You can continue running; CA will keep trying to connect in the background.
+  }
+
+  long hb = 0;
+  auto last_hb = std::chrono::steady_clock::now();
 
   // Main loop that runs forever unless process is terminated or crashes
   while (run) {
@@ -301,7 +387,7 @@ int main(int argc, char **argv) {
       retry_produce:
       try {
           err = producer->produce(
-              topic,
+              cfg.topic,
               RdKafka::Topic::PARTITION_UA,
               RdKafka::Producer::RK_MSG_COPY, // Use COPY flag to ensure data is copied
               buffer, sizeof(Message),
@@ -345,6 +431,23 @@ int main(int argc, char **argv) {
     
     // Process delivery reports
     producer->poll(0);
+
+    // Heartbeat update
+    auto now = std::chrono::steady_clock::now();
+    if (now - last_hb >= std::chrono::seconds(cfg.hb_period_sec)) {
+        last_hb = now;
+        hb++;
+
+        // Only try if CA thinks it is connected
+        if (hb_ch && ca_state(hb_ch) == cs_conn) {
+            int rc = ca_put(DBR_LONG, hb_ch, &hb);
+            if (rc != ECA_NORMAL) {
+                std::cerr << "HB ca_put failed: " << ca_message(rc) << std::endl;
+            }
+            ca_flush_io(); // push it out promptly
+        }
+    }
+
   }
 
   // Clean shutdown
@@ -353,6 +456,10 @@ int main(int argc, char **argv) {
   // Flush any remaining messages
   std::cout << "Flushing remaining messages..." << std::endl;
   producer->flush(10 * 1000 /* wait for max 10 seconds */);
+
+  // Clean up channel access
+  if (hb_ch) ca_clear_channel(hb_ch);
+  ca_context_destroy();
 
   if (producer->outq_len() > 0) {
     std::cerr << producer->outq_len() << " message(s) were not delivered" << std::endl;
