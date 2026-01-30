@@ -44,6 +44,8 @@ class HistoryMessageType(Enum):
   BypassApplicationType=4  # Bypass applicaion card
   DigitalChannelType=5     # Change in digital channel
   AnalogChannelType=6      # Change in analog device threshold status
+  BypassExpiredFaultType=7    # Bypass expired fault
+  BypassExpiredApplicationType=8    # Bypass expired application card
 
 class LogbookTag(str, Enum):
     # Theese are the id of the tags, and they can be found in the README.md
@@ -263,13 +265,15 @@ class HistoryBroker:
         Determines the type of the message, and sends it to the proper function for processing/including to the db
         """
         print("decodeing message") # TEMP
-        if (message.type == HistoryMessageType.FaultStateType.value): # FaultStateType 
+        if (message.type == HistoryMessageType.FaultStateType.value): # FaultStateType
             data = self.process_fault(message)
         elif (message.type == HistoryMessageType.BypassAnalogType.value or message.type == HistoryMessageType.BypassDigitalType.value\
               or message.type == HistoryMessageType.BypassApplicationType.value ): # BypassStateType
             data = self.process_bypass(message)
         elif (message.type == HistoryMessageType.DigitalChannelType.value or message.type == HistoryMessageType.AnalogChannelType.value): # ChannelType (DigitalChannel or AnalogChannel)
             data = self.process_channel(message)
+        elif (message.type == HistoryMessageType.BypassExpiredFaultType.value or message.type == HistoryMessageType.BypassExpiredApplicationType.value): # BypassExpiredType
+            data = self.process_bypass_expired(message)
         else:
             print("DATA ERROR: Bad Message Type", message.to_string())
             return
@@ -314,12 +318,36 @@ class HistoryBroker:
                         f"<b>Card Number</b>: {card_number}<br>"
                         f"<b>Crate Location</b>: {crate_loc}<br>"
                         f"<b>Timestamp</b>: {timestamp}</p>")                
-            else:
+            else: # Default
                 title = f"MPS New Bypass: {bypass_type}"
                 text = f"Bypass Details: {str(bypass_info)}\nTimestamp: {timestamp}"
 
             logbook_tag = LogbookTag.Bypass
-                
+        elif data_type == "bypass_expired":
+            bypass_info = data.get('bypass', {})
+            bypass_type = bypass_info.get('type', 'unknown')
+
+            # Different handling based on bypass type
+            if bypass_type == 'fault':
+                description = bypass_info.get('description', 'No description')
+                title = f"MPS Bypass Expired: {description}."
+                text = (f"<p><b>Expired</b>: {timestamp}<br>")
+                if 'new_state' in data:
+                    text += f"<b>New State</b>: {data['new_state']}"
+                text += "</p>"
+
+            elif bypass_type == 'application':
+                card_number = bypass_info.get('card_number', 'Unknown')
+                crate_loc = bypass_info.get('crate_loc', 'Unknown')
+                title = f"MPS Bypass Expired: Application Card {card_number}, Crate {crate_loc}."
+                text = (f"<p><b>Expired</b>: {timestamp}<br>"
+                        f"<b>Card Number</b>: {card_number}<br>"
+                        f"<b>Crate Location</b>: {crate_loc}<br>")                
+            else: # Default
+                title = f"MPS Bypass Expired: {bypass_type}"
+                text = f"Bypass Details: {str(bypass_info)}\nTimestamp: {timestamp}"
+
+            logbook_tag = LogbookTag.Bypass
         elif data_type == 'channel':
             channel_info = data.get('channel', {})
             channel_name = channel_info.get('name', 'Unknown')
@@ -332,6 +360,7 @@ class HistoryBroker:
                     f"<b>New State</b>: {new_state}<br>"
                     f"<b>Card</b>: {channel_info.get('card_number', 'Unknown')}<br>"
                     f"<b>Location</b>: {channel_info.get('crate_loc', 'Unknown')}<br>"
+                    f"<b>Link Node ID</b>: {channel_info.get('link_node_id', 'Unknown')}<br>"
                     f"<b>Timestamp</b>: {timestamp}</p>")
             logbook_tag = LogbookTag.Channel
                     
@@ -395,6 +424,7 @@ class HistoryBroker:
                         print(f"Failed to parse timestamp with second format: {e2}")
         except Exception as e:
             print(f"Error handling timestamp: {e}")
+
 
         # Construct the payload
         payload = {
@@ -498,13 +528,16 @@ class HistoryBroker:
             else: # analog
                     old_state = "Is Ok" if message.old_value == 0 else "Is Faulted"
                     new_state = "Is Ok" if message.new_value == 0 else "Is Faulted"
+            link_node_id = self.conf_conn.session.query(models.LinkNode)\
+                        .filter(models.LinkNode.crate_id==app_card.crate_id)\
+                        .first().lnid
 
         except:
             print("SESSION ERROR: Add Channel ", message.to_string())
             print(traceback.format_exc())
             return
         channel_info = {"type":"channel", "timestamp": str(message.timestamp), "old_state":old_state, "new_state":new_state,\
-                         "channel": {"number":channel.number, "name":channel.name,"card_number":app_card.number, "crate_loc":crate_loc}}
+                         "channel": {"number":channel.number, "name":channel.name,"card_number":app_card.number, "crate_loc":crate_loc, "link_node_id": link_node_id}}
         return channel_info
 
 
@@ -593,6 +626,34 @@ class HistoryBroker:
                 .filter(models.Fault.id==message.id).first()[0]
                 bypass_info = {"type":"bypass", "timestamp": str(message.timestamp), "new_state":new_state,
                 "bypass" : {"type":"fault", "expiration":expiration, "description":fault_name}}
+        except:
+            print("SESSION ERROR: Add Bypass ", message.to_string())
+            return
+        return bypass_info
+    
+    def process_bypass_expired(self, message: Message):
+        """
+        Processes an analog/digital fault or application card expired bypass
+        Params:
+            message: [type(of message), id]        
+        Output:
+            bypass_info: ['type': 'bypass', 'timestamp' str, 'expiration': str, 'description': str]
+        """
+        try:
+            if (message.type == HistoryMessageType.BypassExpiredApplicationType.value):
+                # Get crate id, then get crate location
+                crate_id = self.conf_conn.session.query(models.ApplicationCard.crate_id)\
+                .filter(models.ApplicationCard.id==message.id)
+                crate_loc = self.conf_conn.session.query(models.Crate)\
+                .filter(models.Crate.id==crate_id)\
+                .first().location
+                bypass_info = {"type":"bypass_expired", "timestamp": str(message.timestamp),
+                "bypass" : {"type":"application", "card_number":message.id, "crate_loc": crate_loc}}
+            elif (message.type == HistoryMessageType.BypassExpiredFaultType.value):
+                fault_name = self.conf_conn.session.query(models.Fault.name)\
+                .filter(models.Fault.id==message.id).first()[0]
+                bypass_info = {"type":"bypass_expired", "timestamp": str(message.timestamp),
+                "bypass" : {"type":"fault", "description":fault_name}}
         except:
             print("SESSION ERROR: Add Bypass ", message.to_string())
             return

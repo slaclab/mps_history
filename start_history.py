@@ -8,6 +8,8 @@ def get_db_filepath(directory_path):
     
     # Find all .db files
     db_files = list(path.glob("*.db"))
+    print(f"path: {path}")
+    print(f"files: {db_files}")
     
     if db_files:
         print(f"DB file found: {db_files[0].name}")
@@ -43,7 +45,7 @@ def main():
         dev = False
 
     # Usage
-    current_mps_configuration_dir = "/afs/slac/g/lcls/physics/mps_configuration/current"
+    current_mps_configuration_dir = "/afs/slac/g/lcls/physics/mps_configuration/9999-99-99-z"
     db_filename = get_db_filepath(current_mps_configuration_dir)
 
     main_processor = HistoryBroker.HistoryBroker(db_filename)

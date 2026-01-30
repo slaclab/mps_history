@@ -32,14 +32,16 @@ class HistoryMessageType(Enum):
   BypassApplicationType=4  # Bypass analog fault
   DigitalChannelType=5     # Change in digital channel
   AnalogChannelType=6      # Change in analog device threshold status
+  BypassExpiredFaultType=7    # Bypass expired fault
+  BypassExpiredApplicationType=8    # Bypass expired application card
 
 def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
     #dev should be changed to True if being run on dev-srv09
-    dev = False
-    prod = True
+    dev = True
+    prod = False
     #restart is True if you want tables to be wiped and recreated 
     #THIS DELETES THE CONFIG TABLE SOMEHOW
     restart = False
@@ -94,19 +96,24 @@ def create_socket(host, env, conf_conn):
                     [HistoryMessageType.DigitalChannelType.value, 3, 0, 1, 0],\
                     [HistoryMessageType.AnalogChannelType.value, 5, 0, 1, 0],\
                     [HistoryMessageType.AnalogChannelType.value, 6, 0, 2, 0],\
-                    [HistoryMessageType.BypassDigitalType.value, 3, 0, 1, cur_time + 50],\
-                    [HistoryMessageType.BypassAnalogType.value, 5, 1, 0, cur_time + 40],\
-                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 1, cur_time + 30]]
+                    [HistoryMessageType.BypassDigitalType.value, 3, 0, 1, cur_time + 5],\
+                    [HistoryMessageType.BypassAnalogType.value, 5, 1, 0, cur_time + 4],\
+                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 1, cur_time + 3]]
+        data_set_delay = [[HistoryMessageType.BypassExpiredFaultType.value, 3, 0, 1, 0],\
+                          [HistoryMessageType.BypassExpiredFaultType.value, 5, 0, 1, 0],\
+                          [HistoryMessageType.BypassExpiredApplicationType.value, 1, 0, 1, 0]]
 
-        # s.sendall(struct.pack('5I', data_set[1][0], data_set[1][1], data_set[1][2], data_set[1][3], data_set[1][4]))
-        # return """ TEMP"""
         # send same data 1 times over 
         num_times_to_send = 1
         for i in range(num_times_to_send): # 7 packets send
             for data in data_set:
                 s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
                 time.sleep(0.000001) # 1 us between each send
-
+            print("waiting 5 secs to send in bypass expired messages")
+            time.sleep(5)
+            for data in data_set_delay:
+                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+                time.sleep(0.000001) # 1 us between each send
 
         return """ TEMP"""
 

@@ -1,6 +1,9 @@
 # base image
 # How to build:
 # 1) Go to top of repo
+# For dev:
+# 2) docker build --tag ghcr.io/slaclab/mps-history-processor:dev -f mps_processor/Dockerfile .
+# For prod:
 # 2) docker build --tag ghcr.io/slaclab/mps-history-processor:latest -f mps_processor/Dockerfile .
 
 FROM python:3.10.14
