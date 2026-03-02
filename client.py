@@ -1,11 +1,18 @@
 from io import DEFAULT_BUFFER_SIZE
 import sqlalchemy
+
+""" TEMP """
+# Forced config mps_database to point to the new_mpsdb 
+import sys
+# caution: path[0] is reserved for script path (or '' in REPL)
+# sys.path.insert(1, '/sdf/home/p/pnispero/mps/mps_database_new')
+sys.path.insert(1, '/home/pnispero/mps_history/mps_database/')
+""" TEMP """
+
 from mps_database import mps_config, models
+from enum import Enum
 
 import config
-from mps_history.tools import HistorySession
-from mps_history.models import analog_history, bypass_history, input_history, fault_history
-from mps_database.models import Base
 
 from mps_database.mps_config import MPSConfig
 from sqlalchemy import select, exc
@@ -13,25 +20,49 @@ from sqlalchemy import select, exc
 from ctypes import *
 
 import socket, random, pprint, struct
+from datetime import datetime
+""" TEMP """
+import time
+""" TEMP """
 
+class HistoryMessageType(Enum):
+  FaultStateType=1         # Fault change state (Faulted/Not Faulted)
+  BypassDigitalType=2      # Bypass digital fault
+  BypassAnalogType=3       # Bypass analog fault
+  BypassApplicationType=4  # Bypass analog fault
+  DigitalChannelType=5     # Change in digital channel
+  AnalogChannelType=6      # Change in analog device threshold status
+  BypassExpiredFaultType=7    # Bypass expired fault
+  BypassExpiredApplicationType=8    # Bypass expired application card
 
 def main():
     """
     Main function responsible for calling whatever tools functions you need. 
     """
-    #dev should be changed to True if being run on lcls-dev3
+    #dev should be changed to True if being run on dev-srv09
     dev = True
+    prod = False
     #restart is True if you want tables to be wiped and recreated 
     #THIS DELETES THE CONFIG TABLE SOMEHOW
     restart = False
 
     if dev:
-        env = config.db_info["lcls-dev3"]
-        host = "lcls-dev3"
+        env = config.db_info["dev-srv09"]
+        host = "dev-srv09"
+    elif prod:
+        env = config.db_info["mccas0"]
+        host = "mccas0"
     else:
         env = config.db_info["test"]
         host = '127.0.0.1'
     db_path = env["file_paths"]["history"]
+
+    conf_conn = MPSConfig(config.db_info[host]["file_paths"]["config"] + '/' + config.db_info[host]["file_names"]["config"]) # connect to config db
+
+    """ TEMP """
+    create_socket(host, env, conf_conn)
+    return
+    """ TEMP """
 
     if restart:
         tables = [analog_history.AnalogHistory.__table__, bypass_history.BypassHistory.__table__, fault_history.FaultHistory.__table__, input_history.InputHistory.__table__]
@@ -41,7 +72,7 @@ def main():
     create_socket(host, env)
     return
 
-def create_socket(host, env):
+def create_socket(host, env, conf_conn):
     """
     Acts as a client to connect to HistoryServer backend. 
 
@@ -52,10 +83,58 @@ def create_socket(host, env):
     
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((host, port))
+        """ TEMP """
+        print(host)
+        print(port)
+        print("connected to socket")
+        cur_time = int(datetime.now().strftime("%s"))
+        print(cur_time)
+
+        # send fault
+        data_set = [[HistoryMessageType.FaultStateType.value, 1, 1, 2, 1063],\
+                    [HistoryMessageType.FaultStateType.value, 1, 2, 1, 1063],\
+                    [HistoryMessageType.DigitalChannelType.value, 3, 0, 1, 0],\
+                    [HistoryMessageType.AnalogChannelType.value, 5, 0, 1, 0],\
+                    [HistoryMessageType.AnalogChannelType.value, 6, 0, 2, 0],\
+                    [HistoryMessageType.BypassDigitalType.value, 3, 0, 1, cur_time + 5],\
+                    [HistoryMessageType.BypassAnalogType.value, 5, 1, 0, cur_time + 4],\
+                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 1, cur_time + 3]]
+        data_set_delay = [[HistoryMessageType.BypassExpiredFaultType.value, 3, 0, 1, 0],\
+                          [HistoryMessageType.BypassExpiredFaultType.value, 5, 0, 1, 0],\
+                          [HistoryMessageType.BypassExpiredApplicationType.value, 1, 0, 1, 0]]
+
+        # send same data 1 times over 
+        num_times_to_send = 1
+        for i in range(num_times_to_send): # 7 packets send
+            for data in data_set:
+                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+                time.sleep(0.000001) # 1 us between each send
+            print("waiting 5 secs to send in bypass expired messages")
+            time.sleep(5)
+            for data in data_set_delay:
+                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+                time.sleep(0.000001) # 1 us between each send
+
+        return """ TEMP"""
+
+        # send in 1000 packets, and calculate the time it takes - the generate_test_data doesnt work for new config db
+        # TODO - Remake the generate_test_data for new config DB
+        time_begin = time()
+        for i in range(1): # each iteration sends 8 packets so 125 * 8 = 1000 packets
+            for data in generate_test_data(env, conf_conn): # generates 8 sets of data
+                #print(data)
+                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
+
+        time_end = time()
+        print("Time elapsed: ", end="")
+        print(time_end - time_begin)
+        return
+        """ TEMP """
         # TODO: remove test data from this function
         curr = 0
         while curr < num_test:
             for data in generate_test_data(env):
+                print(data)
                 s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
             curr +=1 
         #for data in create_bad_data():
@@ -63,14 +142,14 @@ def create_socket(host, env):
 
     return
 
-def generate_test_data(env):
+def generate_test_data(env, conf_conn):
     """
     Generates a suite of realistic test data for entering into the history db.
 
     Type number 3 is skipped because it is defined as "BypassValueType" in the central node ioc, and does not appear to be relevant
     """
+    generate_time_begin = time()
     filename = env["file_paths"]["config"] + "/" + env["file_names"]["config"]
-    conf_conn = MPSConfig()
     ad_select = select(models.AnalogDevice.id)
     ad_result = conf_conn.session.execute(ad_select)
     result = [r[0] for r in ad_result]
@@ -122,6 +201,9 @@ def generate_test_data(env):
 
     #test_data = [fault_all, analog_bypass, digital_bypass, device_input, analog]
     test_data = [fault_init, fault_all, fault_clear, active_fault, analog_bypass, digital_bypass, device_input, analog]
+    generate_time_end = time()
+    #print("Generate Data Time elapsed: ", end="")
+    #print(generate_time_end - generate_time_begin)
     return test_data
 
 def create_bad_data():

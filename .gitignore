@@ -12,6 +12,12 @@ __pycache__/
 # C extensions
 *.so
 
+# Ignore object files
+*.o
+
+# Ignore binary files
+bin/
+
 # Distribution / packaging
 .Python
 build/
@@ -133,3 +139,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Test logs
+test_logs/
+
+# mps database
+mps_database/
+
+# Collector passwords
+kafka_password

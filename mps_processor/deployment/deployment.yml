@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: s3df-dev-container-ad-group
+spec:
+  storageClassName: sdf-group-ad
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mps-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mps-processor
+  template:
+    metadata:
+      labels:
+        app: mps-processor
+    spec:
+      containers:
+      - name: mps-processor
+        image: ghcr.io/slaclab/mps-history-processor:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - >-
+              echo "$ cd /app/" &&
+              cd /app/ && 
+              echo "$ pwd && ls" &&
+              pwd && ls &&
+              echo "$ python3 start_history.py" &&
+              python3 start_history.py
+        envFrom:
+        - secretRef:
+            name: application-secrets
+        resources:
+        # Important there is enough resources to prevent timeouts
+        # TODO: Add autoscaling horizontally if utilization goes abvout 80 percent.
+          requests:
+            # memory: "1Gi"
+            # cpu: "1000m"
+            # try this next if uvicorn time out doesnt work. Could also be you need to setup 
+            # keep-alive at the fastapi run command above
+          limits:
+            memory: 2Gi
+            cpu: "2000m"
+        volumeMounts:
+        - name: s3df-dev-container-ad-group
+          mountPath: /sdf/group/ad
+      imagePullSecrets:
+      - name: github-container-registry
+      volumes:
+      - name: s3df-dev-container-ad-group
+        persistentVolumeClaim:
+          claimName: s3df-dev-container-ad-group
