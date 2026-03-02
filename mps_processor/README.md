@@ -1,6 +1,11 @@
 ## How to Deploy (The mps processor runs on a k8s cluster)
+
+### Development
 0. At the moment we are running the mps processor in the `accel-webapp-dev` cluster
-1. kubectl -n mps-history apply -f mps_processor/deployment
+If deployed before then delete the existing pod, and a new one will deploy.
+
+If deploying for the first time:
+1. kubectl -n mps-history apply -f mps_processor/deployment_dev
 2. (You only need to add this secret one time, this is for the image to be pulled to be authorized) 
 kubectl -n mps-history create secret docker-registry github-container-registry \
   --docker-server=ghcr.io \
@@ -8,12 +13,19 @@ kubectl -n mps-history create secret docker-registry github-container-registry \
   --docker-password=<GITHUB_PAT> \
   --docker-email=pnispero@slac.stanford.edu
 
+### Production
+1. Same deployment steps as development but in `accel-webapp` cluster
+
+If deploying for the first time:
+1. kubectl -n mps-history apply -f mps_processor/deployment
 
 ## Mps History Tags
 There are 3 tags which I created manually through a regular curl request (its simple).
 1. fault-state
 2. channel
 3. bypass
+
+Note - you can also create it as admin in the elog web interface. 
 
 Note - Replace <ELOG_USER_PASSWORD> with the actual password
 

@@ -49,9 +49,9 @@ class HistoryMessageType(Enum):
 
 class LogbookTag(str, Enum):
     # Theese are the id of the tags, and they can be found in the README.md
-    Fault="803bf78d-a718-419d-bd81-979bee35cf54"
-    Channel="a45b3865-0e31-4083-be08-0b69274096a8"
-    Bypass="5723c868-0b39-4be9-ae08-9d4e5cd8f86f"
+    Fault=os.getenv("ELOG_FAULT_TAG_ID")
+    Channel=os.getenv("ELOG_CHANNEL_TAG_ID")
+    Bypass=os.getenv("ELOG_BYPASS_TAG_ID")
 
 class HistoryBroker:
     """
@@ -59,9 +59,14 @@ class HistoryBroker:
     Kafka -> Process -> write to ELOG
     """
     def __init__(self, config_db_filepath: str):
-        self.dev = os.getenv("HISTORY_DEV")
+        self.prod = os.getenv("HISTORY_PROD", "false").lower() in ("true", "1")
         self.sock = None
-        self.elog_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/entries"
+        if self.prod:
+            print("Running in PRODUCTION mode")
+            self.elog_endpoint = "https://accel-webapp.slac.stanford.edu/api/elog-apptoken/v1/entries"
+        else:
+            print("Running in DEV mode")
+            self.elog_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/entries"
 
         self.connect_conf_db(config_db_filepath)    
         self.connect_kafka()
@@ -169,8 +174,9 @@ class HistoryBroker:
         self.elog_user_password = os.getenv("ELOG_USER_PASSWORD")
         if (self.elog_user_password == None):
             raise ValueError("Missing environment variable - ELOG_USER_PASSWORD")
+        self.elog_history_logbook_id = os.getenv("ELOG_HISTORY_LOGBOOK_ID")
         self.headers = {"x-vouch-idp-accesstoken": self.elog_user_password}
-        test_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/logbooks/684c71350de278523b9f3daf/tags"
+        test_endpoint = f"https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/logbooks/{self.elog_history_logbook_id}/tags"
 
         try:
             print("== Initialization: Testing elog connection with a simple GET request ==")
@@ -233,10 +239,12 @@ class HistoryBroker:
         sasl_password = os.getenv("KAFKA_PASSWORD")
         if (sasl_password == None):
             raise ValueError("Missing environment variable - KAFKA_PASSWORD")
-
+        bootstrap_server = os.getenv("KAFKA_BOOTSTRAP_SERVER")
+        if (bootstrap_server == None):
+            raise ValueError("Missing environment variable - KAFKA_BOOTSTRAP_SERVER")
         config = {
             # User-specific properties that you must set
-            'bootstrap.servers': '172.24.8.129:9094',
+            'bootstrap.servers': bootstrap_server,
             'sasl.username':     'mps-data-injestion-publisher',
             'sasl.password':     sasl_password,
 
