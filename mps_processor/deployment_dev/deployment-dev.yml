@@ -38,9 +38,21 @@ spec:
               pwd && ls &&
               echo "$ python3 start_history.py" &&
               python3 start_history.py
+        env:
+        - name: HISTORY_DEV
+          value: "true"
         envFrom:
         - secretRef:
             name: application-secrets
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "[ $(( $(date +%s) - $(date +%s -r /tmp/healthy) )) -lt 30 ]"
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          failureThreshold: 3
         resources:
         # Important there is enough resources to prevent timeouts
         # TODO: Add autoscaling horizontally if utilization goes abvout 80 percent.
