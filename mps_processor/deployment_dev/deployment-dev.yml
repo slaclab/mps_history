@@ -36,8 +36,8 @@ spec:
               cd /app/ && 
               echo "$ pwd && ls" &&
               pwd && ls &&
-              echo "$ python3 start_history.py" &&
-              python3 start_history.py
+              echo "$ python3 start_history.py --dev" &&
+              python3 start_history.py --dev
         env:
         - name: HISTORY_DEV
           value: "true"

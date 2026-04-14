@@ -43,13 +43,13 @@ if __name__ == '__main__':
     config = {
         # User-specific properties that you must set
         'bootstrap.servers': '172.24.8.129:9094',
-        'sasl.username':     'mps-data-injestion-publisher',
+        'sasl.username':     'mps-data-ingestion-publisher',
         'sasl.password':     sasl_password,
 
         # Fixed properties
         'security.protocol': 'SASL_PLAINTEXT',
         'sasl.mechanisms':   'SCRAM-SHA-512',
-        'group.id':          'mps-data-injestion-publisher-group'
+        'group.id':          'mps-data-ingestion-publisher-group'
     }
 
     # Remove SASL settings if not using authentication
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     consumer = Consumer(config)
 
     # Subscribe to topic
-    topic = "mps-data-injestion"
+    topic = "mps-data-ingestion"
     consumer.subscribe([topic])
 
     # Poll for new messages from Kafka and print them.

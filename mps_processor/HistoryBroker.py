@@ -53,8 +53,8 @@ class HistoryBroker:
     Processes the data from central_nodes by consuming messages from
     Kafka -> Process -> write to ELOG
     """
-    def __init__(self, config_db_filepath: str):
-        self.dev = os.getenv("HISTORY_DEV")
+    def __init__(self, config_db_filepath: str, dev: bool = False):
+        self.dev = dev
         self.sock = None
         if self.dev:
             self.elog_api_base = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/"
@@ -257,13 +257,13 @@ class HistoryBroker:
         config = {
             # User-specific properties that you must set
             'bootstrap.servers': kafka_bootstrap_server,
-            'sasl.username':     'mps-data-injestion-publisher',
+            'sasl.username':     'mps-data-ingestion-publisher',
             'sasl.password':     sasl_password,
 
             # Fixed properties
             'security.protocol': 'SASL_PLAINTEXT',
             'sasl.mechanisms':   'SCRAM-SHA-512',
-            'group.id':          'mps-data-injestion-publisher-group',
+            'group.id':          'mps-data-ingestion-publisher-group',
             # Disable auto-commit so we only commit after a successful ELOG write (at-least-once delivery)
             'enable.auto.commit': False
         }
@@ -278,7 +278,7 @@ class HistoryBroker:
         self.consumer = Consumer(config)
 
         # Subscribe to topic
-        topic = "mps-data-injestion"
+        topic = "mps-data-ingestion"
         self.consumer.subscribe([topic])
         print(f"== Ready to consume messages from {topic} kafka ==")
 

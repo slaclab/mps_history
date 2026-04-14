@@ -102,6 +102,6 @@ If `python3 client.py` throws error with mps_database. Then you can download it 
 # With authentication
 kafkacat -b 172.24.8.129:9094 -X security.protocol=SASL_PLAINTEXT \
   -X sasl.mechanisms=SCRAM-SHA-512 \
-  -X sasl.username=mps-data-injestion-publisher \
+  -X sasl.username=mps-data-ingestion-publisher \
   -X sasl.password=<password> \
-  -C -t mps-data-injestion -o beginning
+  -C -t mps-data-ingestion -o beginning
