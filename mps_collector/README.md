@@ -96,8 +96,10 @@ If `python3 client.py` throws error with mps_database. Then you can download it 
 2. 
 
 ### How to run on prod (lcls)
-1. TODO - make a startup script.
-
+1. Released on $PHYSICS_TOP/mps_history
+2. Create a file called kafka_password in mps_collector/, in the file add in the password from the vault on secret/ad/accel-webapp/mps-history/application-secrets
+3. Runs automatically as a service using [st_mps-collector.service](st_mps-collector.service), please ask sys admin team to start the service
+4. Runs on mccas0, as it is part of the DMZ and is accessible from production nodes and can access the kuberenetes kafka.
 
 # With authentication
 kafkacat -b 172.24.8.129:9094 -X security.protocol=SASL_PLAINTEXT \
@@ -105,3 +107,8 @@ kafkacat -b 172.24.8.129:9094 -X security.protocol=SASL_PLAINTEXT \
   -X sasl.username=mps-data-ingestion-publisher \
   -X sasl.password=<password> \
   -C -t mps-data-ingestion -o beginning
+
+# To get ip address of kafka boostrap
+1. Look at cluster (accel-webapp - prod), (accel-webapp-dev - dev). The services
+2. Look for `kafka                     eed-cluster-kafka-external-bootstrap  LoadBalancer  10.110.108.199  172.24.8.142  tcp-external:9094►0`
+3. The `EXTERNAL-IP` is what your looking for 

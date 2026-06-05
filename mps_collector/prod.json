@@ -1,0 +1,11 @@
+{
+    "brokers": "172.24.8.142:9094",
+    "topic": "mps-data-ingestion",
+    "udp_port": 3356,
+    "security_protocol": "SASL_PLAINTEXT",
+    "sasl_username": "mps-data-ingestion-publisher",
+    "sasl_password_file": "kafka_password",
+    "sasl_mechanism": "SCRAM-SHA-512",
+    "hb_pv": "MPS:SYS0:100:SCMPS_HIST_COUNTER",
+    "hb_period_sec": 10
+}
