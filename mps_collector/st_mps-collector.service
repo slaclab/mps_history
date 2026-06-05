@@ -1,0 +1,14 @@
+[Unit]
+Description=MPS History Collector
+After=network.target remote-fs.target autofs.service
+
+[Service]
+Type=simple
+User=pnispero
+WorkingDirectory=/afs/slac/g/lcls/physics/mps_history/mps_collector
+ExecStart=/afs/slac/g/lcls/physics/mps_history/bin/mps_collector /afs/slac/g/lcls/physics/mps_history/mps_collector/prod.json
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

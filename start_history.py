@@ -45,10 +45,13 @@ def main():
         dev = False
 
     # Usage
-    current_mps_configuration_dir = "/afs/slac/g/lcls/physics/mps_configuration/9999-99-99-z"
+    if dev:
+        current_mps_configuration_dir = "/afs/slac/g/lcls/physics/mps_configuration/9999-99-99-z"
+    else:
+        current_mps_configuration_dir = "/afs/slac/g/lcls/physics/mps_configuration/current"
     db_filename = get_db_filepath(current_mps_configuration_dir)
 
-    main_processor = HistoryBroker.HistoryBroker(db_filename)
+    main_processor = HistoryBroker.HistoryBroker(db_filename, dev=dev)
     main_processor.process_loop()
 
     return

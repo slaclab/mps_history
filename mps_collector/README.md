@@ -83,20 +83,32 @@ If `python3 client.py` throws error with mps_database. Then you can download it 
 
 6. When done you can do a `docker compose down` assuming your in the mps_collector/ dir
 
-### Testing on dev cluster
+### Testing on dev cluster (devlogin)
 1. Build with debug `make debug`
-2. Run the history collector (make sure to replace <password> with actual password)
-`./bin/mps_collector_debug 172.24.8.129:9094 mps-data-injestion 3356 SASL_PLAINTEXT mps-data-injestion-publisher <password> SCRAM-SHA-512`
+2. Create a file called kafka_password in mps_collector/, in the file add in the password from the vault on secret/ad/accel-webapp-dev/mps-history/application-secrets
+2. Run the history collector from top level: 
+`/sdf/home/p/pnispero/mps/mps_history/bin/mps_collector_debug /sdf/home/p/pnispero/mps/mps_history/mps_collector/dev.json`
 3. Run the test [client.py](client.py) `python3 client.py`
-4. (TODO: in progress, will move to a container you have to run on the k8s cluster) Run the processor [start_history.py](start_history.py) `python3 start_history.py`
+4. The mps processor is always running on accel-webapp-dev cluster, if not then can check the README.md in mps_processor/
 
 ### How to view data in kafka instance
 1. Install kafkacat `sudo apt-get install kafkacat`
 2. 
 
+### How to run on prod (lcls)
+1. Released on $PHYSICS_TOP/mps_history
+2. Create a file called kafka_password in mps_collector/, in the file add in the password from the vault on secret/ad/accel-webapp/mps-history/application-secrets
+3. Runs automatically as a service using [st_mps-collector.service](st_mps-collector.service), please ask sys admin team to start the service
+4. Runs on mccas0, as it is part of the DMZ and is accessible from production nodes and can access the kuberenetes kafka.
+
 # With authentication
 kafkacat -b 172.24.8.129:9094 -X security.protocol=SASL_PLAINTEXT \
   -X sasl.mechanisms=SCRAM-SHA-512 \
-  -X sasl.username=mps-data-injestion-publisher \
+  -X sasl.username=mps-data-ingestion-publisher \
   -X sasl.password=<password> \
-  -C -t mps-data-injestion -o beginning
+  -C -t mps-data-ingestion -o beginning
+
+# To get ip address of kafka boostrap
+1. Look at cluster (accel-webapp - prod), (accel-webapp-dev - dev). The services
+2. Look for `kafka                     eed-cluster-kafka-external-bootstrap  LoadBalancer  10.110.108.199  172.24.8.142  tcp-external:9094►0`
+3. The `EXTERNAL-IP` is what your looking for 

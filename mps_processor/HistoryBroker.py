@@ -4,6 +4,7 @@ import config, sys, datetime, traceback
 import requests
 from ctypes import *
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 from enum import Enum
 from confluent_kafka import Consumer
@@ -47,21 +48,20 @@ class HistoryMessageType(Enum):
   BypassExpiredFaultType=7    # Bypass expired fault
   BypassExpiredApplicationType=8    # Bypass expired application card
 
-class LogbookTag(str, Enum):
-    # Theese are the id of the tags, and they can be found in the README.md
-    Fault="803bf78d-a718-419d-bd81-979bee35cf54"
-    Channel="a45b3865-0e31-4083-be08-0b69274096a8"
-    Bypass="5723c868-0b39-4be9-ae08-9d4e5cd8f86f"
-
 class HistoryBroker:
     """
     Processes the data from central_nodes by consuming messages from
     Kafka -> Process -> write to ELOG
     """
-    def __init__(self, config_db_filepath: str):
-        self.dev = os.getenv("HISTORY_DEV")
+    def __init__(self, config_db_filepath: str, dev: bool = False):
+        self.dev = dev
         self.sock = None
-        self.elog_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/entries"
+        if self.dev:
+            self.elog_api_base = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/"
+        else:
+            self.elog_api_base = "https://accel-webapp.slac.stanford.edu/api/elog-apptoken/v1/"
+
+        self.elog_endpoint = self.elog_api_base + "entries"
 
         self.connect_conf_db(config_db_filepath)    
         self.connect_kafka()
@@ -75,11 +75,10 @@ class HistoryBroker:
         try:
             while True:
                 msg = self.consumer.poll(1.0)
+                # Touch heartbeat file so the Kubernetes livenessProbe can verify the loop is alive
+                Path("/tmp/healthy").touch()
                 if msg is None:
-                    # Initial message consumption may take up to
-                    # `session.timeout.ms` for the consumer group to
-                    # rebalance and start consuming
-                    print("Waiting...")
+                    pass
                 elif msg.error():
                     print(f"ERROR: {msg.error()}")
                 else:
@@ -109,19 +108,25 @@ class HistoryBroker:
 
                             message_data.timestamp = timestamp_str
                             
-                            self.decode_message(message_data)
+                            processed = self.process_message(message_data)
+                            if processed is True:
+                                # Procesed and ELOG write succeeded — commit offset
+                                self.consumer.commit(message=msg, asynchronous=False)
+                            elif processed is False:
+                                # ELOG failure — do not commit, will retry on restart
+                                print(f"ELOG write failed for offset {msg.offset()} — offset not committed, will retry on restart")
+                            else:
+                                # Permanent processing failure (bad message type, DB error) — commit to skip
+                                print(f"PROCESSING ERROR at offset {msg.offset()} — committing to skip unprocessable message")
+                                self.consumer.commit(message=msg, asynchronous=False)
 
                         else:
-                            print(f"Consumed event with null value from topic {msg.topic()}")
+                            print(f"Consumed event with null value from topic {msg.topic()} at offset {msg.offset()} — committing to skip")
+                            self.consumer.commit(message=msg, asynchronous=False)
                     except Exception as e:
-                        # If binary parsing fails, try to decode as string
-                        try:
-                            value = msg.value().decode('utf-8') if msg.value() else None
-                            print(f"Consumed event from topic {msg.topic()}: key = {key} value = {value}")
-                        except UnicodeDecodeError:
-                            # If not valid UTF-8, show as hex
-                            hex_value = msg.value().hex() if msg.value() else None
-                            print(f"Consumed binary event from topic {msg.topic()}: key = {key} value (hex) = {hex_value}")
+                        # Permanent failure (e.g. unparseable binary data) — commit to skip the poison pill
+                        print(f"FATAL ERROR processing offset {msg.offset()}: {e} — committing to skip")
+                        self.consumer.commit(message=msg, asynchronous=False)
         except KeyboardInterrupt:
             pass
         finally:
@@ -169,12 +174,24 @@ class HistoryBroker:
         self.elog_user_password = os.getenv("ELOG_USER_PASSWORD")
         if (self.elog_user_password == None):
             raise ValueError("Missing environment variable - ELOG_USER_PASSWORD")
+        self.elog_history_logbook_id = os.getenv("ELOG_HISTORY_LOGBOOK_ID")
+        if (self.elog_history_logbook_id == None):
+            raise ValueError("Missing environment variable - ELOG_HISTORY_LOGBOOK_ID")
+        self.elog_bypass_tag_id = os.getenv("ELOG_BYPASS_TAG_ID")
+        if (self.elog_bypass_tag_id == None):
+            raise ValueError("Missing environment variable - ELOG_BYPASS_TAG_ID")
+        self.elog_channel_tag_id = os.getenv("ELOG_CHANNEL_TAG_ID")
+        if (self.elog_channel_tag_id == None):
+            raise ValueError("Missing environment variable - ELOG_CHANNEL_TAG_ID")
+        self.elog_fault_tag_id = os.getenv("ELOG_FAULT_TAG_ID")
+        if (self.elog_fault_tag_id == None):
+            raise ValueError("Missing environment variable - ELOG_FAULT_TAG_ID")
         self.headers = {"x-vouch-idp-accesstoken": self.elog_user_password}
-        test_endpoint = "https://accel-webapp-dev.slac.stanford.edu/api/elog-apptoken/v1/logbooks/684c71350de278523b9f3daf/tags"
+        test_endpoint = f"{self.elog_api_base}/logbooks/{self.elog_history_logbook_id}/tags"
 
         try:
             print("== Initialization: Testing elog connection with a simple GET request ==")
-            response = requests.get(test_endpoint, headers=self.headers)
+            response = requests.get(test_endpoint, headers=self.headers, timeout=15)
             
             # Try to raise for status
             response.raise_for_status()
@@ -233,17 +250,22 @@ class HistoryBroker:
         sasl_password = os.getenv("KAFKA_PASSWORD")
         if (sasl_password == None):
             raise ValueError("Missing environment variable - KAFKA_PASSWORD")
+        kafka_bootstrap_server = os.getenv("KAFKA_BOOTSTRAP_SERVER")
+        if (kafka_bootstrap_server == None):
+            raise ValueError("Missing environment variable - KAFKA_BOOTSTRAP_SERVER")
 
         config = {
             # User-specific properties that you must set
-            'bootstrap.servers': '172.24.8.129:9094',
-            'sasl.username':     'mps-data-injestion-publisher',
+            'bootstrap.servers': kafka_bootstrap_server,
+            'sasl.username':     'mps-data-ingestion-publisher',
             'sasl.password':     sasl_password,
 
             # Fixed properties
             'security.protocol': 'SASL_PLAINTEXT',
             'sasl.mechanisms':   'SCRAM-SHA-512',
-            'group.id':          'mps-data-injestion-publisher-group'
+            'group.id':          'mps-data-ingestion-publisher-group',
+            # Disable auto-commit so we only commit after a successful ELOG write (at-least-once delivery)
+            'enable.auto.commit': False
         }
 
         # Remove SASL settings if not using authentication
@@ -256,11 +278,11 @@ class HistoryBroker:
         self.consumer = Consumer(config)
 
         # Subscribe to topic
-        topic = "mps-data-injestion"
+        topic = "mps-data-ingestion"
         self.consumer.subscribe([topic])
         print(f"== Ready to consume messages from {topic} kafka ==")
 
-    def decode_message(self, message: Message):
+    def process_message(self, message: Message):
         """
         Determines the type of the message, and sends it to the proper function for processing/including to the db
         """
@@ -276,12 +298,14 @@ class HistoryBroker:
             data = self.process_bypass_expired(message)
         else:
             print("DATA ERROR: Bad Message Type", message.to_string())
-            return
+            return None
         print(data) # TEMP
 
+        if data is None:
+            return None
+
         # Send the data to the Kubernetes infrastructure
-        self.send_data(data)
-        return
+        return self.send_data(data)
 
     def send_data(self, data):
         """
@@ -322,7 +346,7 @@ class HistoryBroker:
                 title = f"MPS New Bypass: {bypass_type}"
                 text = f"Bypass Details: {str(bypass_info)}\nTimestamp: {timestamp}"
 
-            logbook_tag = LogbookTag.Bypass
+            logbook_tag = self.elog_bypass_tag_id
         elif data_type == "bypass_expired":
             bypass_info = data.get('bypass', {})
             bypass_type = bypass_info.get('type', 'unknown')
@@ -347,7 +371,7 @@ class HistoryBroker:
                 title = f"MPS Bypass Expired: {bypass_type}"
                 text = f"Bypass Details: {str(bypass_info)}\nTimestamp: {timestamp}"
 
-            logbook_tag = LogbookTag.Bypass
+            logbook_tag = self.elog_bypass_tag_id
         elif data_type == 'channel':
             channel_info = data.get('channel', {})
             channel_name = channel_info.get('name', 'Unknown')
@@ -362,7 +386,7 @@ class HistoryBroker:
                     f"<b>Location</b>: {channel_info.get('crate_loc', 'Unknown')}<br>"
                     f"<b>Link Node ID</b>: {channel_info.get('link_node_id', 'Unknown')}<br>"
                     f"<b>Timestamp</b>: {timestamp}</p>")
-            logbook_tag = LogbookTag.Channel
+            logbook_tag = self.elog_channel_tag_id
                     
         elif data_type == 'fault':
             fault_info = data.get('fault', {})
@@ -386,7 +410,7 @@ class HistoryBroker:
                     f"<b>Active</b>: {fault_info.get('active', 'Unknown')}<br>"
                     f"{beams_text}"
                     f"<b>Timestamp</b>: {timestamp}")
-            logbook_tag = LogbookTag.Fault
+            logbook_tag = self.elog_fault_tag_id
         else:
             # Generic handler for other types
             title = f"MPS Event: {data_type}"
@@ -428,11 +452,11 @@ class HistoryBroker:
 
         # Construct the payload
         payload = {
-            "logbooks": ["684c71350de278523b9f3daf"],
+            "logbooks": [self.elog_history_logbook_id],
             "title": title,
             "text": text,
             "note": "",
-            "tags": [logbook_tag.value],
+            "tags": [logbook_tag],
             "attachments": [],
             # "summarizes": { # We can skip this field
             #     "shiftId": "",
@@ -447,7 +471,7 @@ class HistoryBroker:
         try:
             print(f"Sending request to: {self.elog_endpoint}")
             print(f"Headers: {self.headers}")
-            response = requests.post(self.elog_endpoint, headers=self.headers, json=payload)
+            response = requests.post(self.elog_endpoint, headers=self.headers, json=payload, timeout=15)
             
             print(f"Response status code: {response.status_code}")
             print(f"Response headers: {response.headers}")
