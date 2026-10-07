@@ -4,7 +4,7 @@ After=network.target remote-fs.target autofs.service
 
 [Service]
 Type=simple
-User=pnispero
+User=laci
 WorkingDirectory=/afs/slac/g/lcls/physics/mps_history/mps_collector
 ExecStart=/afs/slac/g/lcls/physics/mps_history/bin/mps_collector /afs/slac/g/lcls/physics/mps_history/mps_collector/prod.json
 Restart=on-failure
