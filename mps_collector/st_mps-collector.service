@@ -1,5 +1,5 @@
 [Unit]
-Description=MPS History Collector
+Description=SCMPS History Collector
 After=network.target remote-fs.target autofs.service
 
 [Service]
@@ -10,5 +10,28 @@ ExecStart=/afs/slac/g/lcls/physics/mps_history/bin/mps_collector /afs/slac/g/lcl
 Restart=on-failure
 RestartSec=5
 
+# Environment variables
+Environment=EPICS_CA_AUTO_ADDR_LIST=NO
+Environment=EPICS_CA_ADDR_LIST=lcls-prod01:5065
+
 [Install]
 WantedBy=multi-user.target
+
+# Need env variables to write to production MpsSupport PV from mccas0. Example:
+# [laci@mccas0 mps_history]$ caput MPS:SYS0:100:SCMPS_HIST_COUNTER 0
+# Old : MPS:SYS0:100:SCMPS_HIST_COUNTER 1
+# Error from put operation: Write access denied
+# [laci@mccas0 mps_history]$ echo $EPICS_CA_AUTO_ADDR_LIST
+# NO
+# [laci@mccas0 mps_history]$ echo $EPICS_CA_ADDR_LIST
+# lcls-prod01:5068 lcls-prod01:5063 mcc-dmz
+# [laci@mccas0 mps_history]$ export EPICS_CA_ADDR_LIST=lcls-prod01:5065
+# [laci@mccas0 mps_history]$ echo $EPICS_CA_ADDR_LIST
+# lcls-prod01:5065
+# [laci@mccas0 mps_history]$ caget MPS:SYS0:100:SCMPS_HIST_COUNTER
+# MPS:SYS0:100:SCMPS_HIST_COUNTER 1
+# [laci@mccas0 mps_history]$ caput MPS:SYS0:100:SCMPS_HIST_COUNTER 0
+# Old : MPS:SYS0:100:SCMPS_HIST_COUNTER 1
+# New : MPS:SYS0:100:SCMPS_HIST_COUNTER 1
+# [laci@mccas0 mps_history]$ caget MPS:SYS0:100:SCMPS_HIST_COUNTER
+# MPS:SYS0:100:SCMPS_HIST_COUNTER 0
