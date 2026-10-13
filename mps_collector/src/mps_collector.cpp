@@ -53,6 +53,10 @@ static void sigterm(int sig) {
   run = 0;
 }
 
+// Kafka partition key, the name doesn't matter as long as its consistent. 
+// Ensures only one partition is chosen so the consumer can consume in order.
+static const std::string KAFKA_KEY = "mps-history";
+
 // Delivery report callback
 class DeliveryReportCallback : public RdKafka::DeliveryReportCb {
 public:
@@ -201,6 +205,12 @@ void configure_kafka(RdKafka::Conf &conf, std::string brokers, std::string secur
   }
 
   if (conf.set("batch.num.messages", "10000", errstr) != RdKafka::Conf::CONF_OK) {
+    std::cerr << errstr << std::endl;
+    exit(1);
+  }
+
+  // Keep messages in order within the partition across retries (no reordering/duplicates)
+  if (conf.set("enable.idempotence", "true", errstr) != RdKafka::Conf::CONF_OK) {
     std::cerr << errstr << std::endl;
     exit(1);
   }
@@ -391,7 +401,7 @@ int main(int argc, char **argv) {
               RdKafka::Topic::PARTITION_UA,
               RdKafka::Producer::RK_MSG_COPY, // Use COPY flag to ensure data is copied
               buffer, sizeof(Message),
-              NULL, 0,  // No key
+              KAFKA_KEY.data(), KAFKA_KEY.size(),
               0,        // Use current timestamp
               NULL,     // No headers
               NULL);    // No opaque
