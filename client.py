@@ -94,7 +94,7 @@ def create_socket(host, env, conf_conn):
         digital_type = HistoryMessageType.DigitalChannelType.value
         analog_type = HistoryMessageType.AnalogChannelType.value
 
-        # Expect at ~20 s: 1 fault summary (3 transitions), 1 channel summary (3 transitions)
+        # Expect at ~20 s: 1 fault summary (5 transitions), 1 channel summary (5 transitions)
         repeated = [[fault_type, 5, 21, 20, 0], [digital_type, 133, 1, 0, 0],
                     [fault_type, 5, 20, 21, 0], [digital_type, 133, 0, 1, 0],
                     [fault_type, 5, 21, 20, 0], [digital_type, 133, 1, 0, 0],
