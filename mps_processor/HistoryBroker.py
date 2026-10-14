@@ -1,32 +1,47 @@
 import os
 import struct
+import time
 import config, sys, datetime, traceback
 import requests
+from collections import deque
 from ctypes import *
-from datetime import datetime
+from itertools import chain
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
-from enum import Enum
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, KafkaException, TopicPartition
+from confluent_kafka import Message as KafkaMessage
 from sqlalchemy import inspect
-from datetime import datetime
 
 from mps_database.mps_config import MPSConfig, models
 from sqlalchemy import select
+from mps_processor.HistoryMessageType import HistoryMessageType
+from mps_processor.summary_window import LOCAL_TZ, SummaryWindow, WindowEvent
 
 import struct
 
+KAFKA_TOPIC = "mps-data-ingestion"
+GROUP_ID = "mps-data-ingestion-publisher-group"
+RETRY_DELAY_MIN_S = 5
+RETRY_DELAY_MAX_S = 60
+# Grouped into summary windows; everything else (bypasses) is posted individually
+WINDOWED_TYPES = frozenset({HistoryMessageType.FaultStateType, HistoryMessageType.DigitalChannelType,
+                            HistoryMessageType.AnalogChannelType})
+
+
 class Message:
-    def __init__(self, type, id, old_value, new_value, aux):
+    def __init__(self, type: int, id: int, old_value: int, new_value: int, aux: int) -> None:
         self.type = type
         self.id = id
         self.old_value = old_value
         self.new_value = new_value
         self.aux = aux
-        self.timestamp = None # Will be set after parsing
+        self.timestamp: str | None = None # Display string, set after parsing
+        self.event_time: datetime | None = None # timezone-aware datetime from the Kafka message timestamp
     
     @classmethod
-    def from_binary(cls, binary_data):
+    def from_binary(cls, binary_data: bytes) -> "Message":
         if len(binary_data) < 20:
             raise ValueError(f"Message too short: {len(binary_data)} bytes")
         
@@ -35,25 +50,15 @@ class Message:
         type_val, id_val, old_val, new_val, aux_val = struct.unpack('<IIIII', binary_data)
         return cls(type_val, id_val, old_val, new_val, aux_val)
         
-    def to_string(self):
+    def to_string(self) -> str:
         return f"Message(type={self.type}, id={self.id}, old_value={self.old_value}, new_value={self.new_value}, aux={self.aux})"
-
-class HistoryMessageType(Enum):
-  FaultStateType=1         # Fault change state (Faulted/Not Faulted)
-  BypassDigitalType=2      # Bypass digital fault
-  BypassAnalogType=3       # Bypass analog fault
-  BypassApplicationType=4  # Bypass applicaion card
-  DigitalChannelType=5     # Change in digital channel
-  AnalogChannelType=6      # Change in analog device threshold status
-  BypassExpiredFaultType=7    # Bypass expired fault
-  BypassExpiredApplicationType=8    # Bypass expired application card
 
 class HistoryBroker:
     """
     Processes the data from central_nodes by consuming messages from
     Kafka -> Process -> write to ELOG
     """
-    def __init__(self, config_db_filepath: str, dev: bool = False):
+    def __init__(self, config_db_filepath: str, dev: bool = False) -> None:
         self.dev = dev
         self.sock = None
         if self.dev:
@@ -63,77 +68,160 @@ class HistoryBroker:
 
         self.elog_endpoint = self.elog_api_base + "entries"
 
+        self.windows: dict[tuple[HistoryMessageType, int], SummaryWindow] = {}  # (msg type, fault/channel id) -> open SummaryWindow
+        self.outbox: deque[SummaryWindow] = deque()  # closed windows (and bypasses) waiting to be posted, oldest first
+        self.consumed: dict[int, int] = {}   # partition -> offset after the last consumed message
+        self.committed: dict[int, int] = {}  # partition -> last committed offset
+        self.paused: bool = False            # consumer paused while the outbox can't be posted
+        self.retry_at: float = 0.0
+        self.retry_delay: int = RETRY_DELAY_MIN_S
+
         self.connect_conf_db(config_db_filepath)    
         self.connect_kafka()
         self.test_elog_connection()
 
-    def process_loop(self):
+    def process_loop(self) -> None:
         """
-        Process any new messages from Kafka
+        Consume from Kafka and write to the ELOG until interrupted.
         """
-        # Poll for new messages from Kafka and print them.
         try:
             while True:
-                msg = self.consumer.poll(1.0)
-                # Touch heartbeat file so the Kubernetes livenessProbe can verify the loop is alive
-                Path("/tmp/healthy").touch()
-                if msg is None:
-                    pass
-                elif msg.error():
-                    print(f"ERROR: {msg.error()}")
-                else:
-                    # Process the message
-                    key = msg.key().decode('utf-8') if msg.key() else None
-                    
-                    # Get Kafka message timestamp
-                    kafka_timestamp = msg.timestamp()
-                    timestamp_type = kafka_timestamp[0]  # 0=CreateTime, 1=LogAppendTime
-                    timestamp_value = kafka_timestamp[1]  # Timestamp in milliseconds
-                    
-                    # Convert to readable format
-                    timestamp_str = datetime.fromtimestamp(timestamp_value/1000, tz=ZoneInfo("America/Los_Angeles")).strftime('%Y-%m-%d %I:%M:%S %p')
-                    # For the value, try to parse it as your Message struct
-                    try:
-                        if msg.value():
-                            # Try to parse as binary Message struct
-                            message_data = self.parse_message(msg.value())
-                            # Print message details
-                            print(f"\n--- Message at offset {msg.offset()} ---")
-                            print(f"Timestamp: {timestamp_str} ({timestamp_value}ms)")
-                            print(f"Type: {message_data.type}")
-                            print(f"ID: {message_data.id}")
-                            print(f"Old Value: {message_data.old_value}")
-                            print(f"New Value: {message_data.new_value}")
-                            print(f"Aux: {message_data.aux}")
-
-                            message_data.timestamp = timestamp_str
-                            
-                            processed = self.process_message(message_data)
-                            if processed is True:
-                                # Procesed and ELOG write succeeded — commit offset
-                                self.consumer.commit(message=msg, asynchronous=False)
-                            elif processed is False:
-                                # ELOG failure — do not commit, will retry on restart
-                                print(f"ELOG write failed for offset {msg.offset()} — offset not committed, will retry on restart")
-                            else:
-                                # Permanent processing failure (bad message type, DB error) — commit to skip
-                                print(f"PROCESSING ERROR at offset {msg.offset()} — committing to skip unprocessable message")
-                                self.consumer.commit(message=msg, asynchronous=False)
-
-                        else:
-                            print(f"Consumed event with null value from topic {msg.topic()} at offset {msg.offset()} — committing to skip")
-                            self.consumer.commit(message=msg, asynchronous=False)
-                    except Exception as e:
-                        # Permanent failure (e.g. unparseable binary data) — commit to skip the poison pill
-                        print(f"FATAL ERROR processing offset {msg.offset()}: {e} — committing to skip")
-                        self.consumer.commit(message=msg, asynchronous=False)
+                self.heartbeat()
+                self.poll()
+                self.flush_outbox()
         except KeyboardInterrupt:
             pass
         finally:
-            # Leave group and commit final offsets
+            # Open windows and the outbox are not committed, so they are rebuilt from Kafka on restart
             self.consumer.close()
+
+    def heartbeat(self) -> None:
+        # Touch heartbeat file so the Kubernetes livenessProbe can verify the loop is alive
+        Path("/tmp/healthy").touch()
+
+    def decode(self, msg: KafkaMessage) -> Message | None:
+        """Parse a Kafka message into a Message with its event time, or None if it has no usable payload."""
+        if not msg.value():
+            return None
+        message = self.parse_message(msg.value())
+        if message is None:
+            return None
+        message.event_time = datetime.fromtimestamp(msg.timestamp()[1] / 1000, tz=timezone.utc)
+        message.timestamp = message.event_time.astimezone(LOCAL_TZ).strftime('%Y-%m-%d %I:%M:%S %p')
+        return message
+
+    def poll(self) -> None:
+        """Read one message: add a fault/channel event to its window, or queue a bypass to post now."""
+        msg = self.consumer.poll(1.0)
+        if msg is None:
+            # Caught up with Kafka: only now is wall clock a valid event clock.
+            # During a backlog replay every event is "old", so windows close on event time instead.
+            self.close_expired(datetime.now(timezone.utc))
+            self.commit_done()
+            return
+        if msg.error():
+            print(f"ERROR: {msg.error()}")
+            return
+        self.consumed[msg.partition()] = msg.offset() + 1
+
+        message = self.decode(msg)
+        if message is None:
+            return
+        print(f"[{msg.partition()}:{msg.offset()}] {message.event_time.isoformat()} {message.to_string()}")
+        self.close_expired(message.event_time)
+
+        processed_event = self.process_message(message)
+        if processed_event is None:
+            print(f"PROCESSING ERROR at offset {msg.offset()} — skipping unprocessable message")
+            return
+
+        event = WindowEvent(message.event_time, HistoryMessageType(message.type), processed_event, msg.partition(), msg.offset())
+        if event.msg_type not in WINDOWED_TYPES:
+            self.outbox.append(SummaryWindow(event))  # bypass: one-event window, posted right away
+            return
+        # Fault and channel ids come from different tables, so the type is part of the window id
+        window_id = (event.msg_type, message.id)
+        if window_id in self.windows:
+            self.windows[window_id].add(event)
+        else:
+            self.windows[window_id] = SummaryWindow(event)
+
+    def close_expired(self, now: datetime) -> None:
+        """Move every window that is WINDOW_TIME past its first event to the outbox, oldest first."""
+        expired_window_ids = []
+        for window_id, window in self.windows.items():
+            if window.is_expired(now):
+                expired_window_ids.append(window_id)
+
+        expired_window_ids.sort(key=lambda window_id: self.windows[window_id].start)
+
+        for window_id in expired_window_ids:
+            self.outbox.append(self.windows.pop(window_id))
+
+    def flush_outbox(self) -> None:
+        """Post closed windows in order; on failure retry with backoff and stop consuming meanwhile."""
+        posted = False
+        while self.outbox and time.monotonic() >= self.retry_at:
+            window = self.outbox[0]
+            if not self.post_window(window):
+                print(f"ELOG post failed for window starting {window.start.isoformat()}; "
+                      f"retrying in {self.retry_delay} s")
+                self.retry_at = time.monotonic() + self.retry_delay
+                self.retry_delay = min(self.retry_delay * 2, RETRY_DELAY_MAX_S)
+                self.set_paused(True)
+                break
+            self.outbox.popleft()
+            posted = True
+            self.retry_delay = RETRY_DELAY_MIN_S
+            self.heartbeat()
+        if posted:
+            self.commit_done()
+        if not self.outbox:
+            self.set_paused(False)
+
+    def commit_done(self) -> None:
+        """
+        Commit each partition up to its oldest event that is not posted yet (open window or outbox).
+        Kafka commits are cumulative, so nothing after that point can be committed, even if posted.
+        """
+        offsets = dict(self.consumed)
+        for window in chain(self.windows.values(), self.outbox):
+            for e in window.events:
+                offsets[e.partition] = min(offsets[e.partition], e.offset)
+        changed_offsets = {}
+        for partition, offset in offsets.items():
+            if self.committed.get(partition) != offset:
+                changed_offsets[partition] = offset
+
+        if not changed_offsets:
+            return
+        try:
+            self.consumer.commit(offsets=[TopicPartition(KAFKA_TOPIC, p, o) for p, o in changed_offsets.items()],
+                                 asynchronous=False)
+            self.committed.update(changed_offsets)
+        except KafkaException as e:
+            print(f"Kafka commit failed ({e}); these messages may be posted again after a restart")
+
+    def set_paused(self, paused: bool) -> None:
+        """Stop fetching while the ELOG is failing, but keep polling so we stay in the group."""
+        if paused == self.paused:
+            return
+        assignment = self.consumer.assignment()
+        if paused:
+            self.consumer.pause(assignment)
+        else:
+            self.consumer.resume(assignment)
+        self.paused = paused
+
+    def post_window(self, window: SummaryWindow) -> bool:
+        """One entry per window: the normal entry if it has one event, else a summary entry."""
+        if not window.is_summary:
+            return self.send_data(window.events[0].processed_event)
+        tag = self.elog_fault_tag_id if window.events[0].msg_type is HistoryMessageType.FaultStateType \
+            else self.elog_channel_tag_id
+        return self.post_entry(window.title(), window.body_html(), [tag], window.start)
     
-    def connect_conf_db(self, config_db_filepath: str):
+    def connect_conf_db(self, config_db_filepath: str) -> None:
         """
         Creates a interactable connection to the configuration database
         """
@@ -154,7 +242,7 @@ class HistoryBroker:
             exit()
         return    
     
-    def test_database_connection(self):
+    def test_database_connection(self) -> bool:
         """
         Tests if the database connection is working by running a simple query
         """
@@ -170,7 +258,7 @@ class HistoryBroker:
             print(f"Database connection test failed: {e}")
             return False
         
-    def test_elog_connection(self):
+    def test_elog_connection(self) -> bool:
         self.elog_user_password = os.getenv("ELOG_USER_PASSWORD")
         if (self.elog_user_password == None):
             raise ValueError("Missing environment variable - ELOG_USER_PASSWORD")
@@ -220,7 +308,6 @@ class HistoryBroker:
             
             print(f"Request URL: {response.request.url}")
             print(f"Request method: {response.request.method}")
-            print(f"Request headers: {response.request.headers}")
             print(f"Request body: {response.request.body}")
             
             return False
@@ -237,14 +324,14 @@ class HistoryBroker:
             print(f"General Error: {e}")
             return False
 
-    def parse_message(self, binary_data) -> Message:
+    def parse_message(self, binary_data: bytes) -> Message | None:
         """Parse binary message data into a Message object."""
         try:
             return Message.from_binary(binary_data)
         except Exception as e:
            print(f"Failed to parse message: {str(e)}")
     
-    def connect_kafka(self):
+    def connect_kafka(self) -> None:
         """Connect to the kafka mps data topic"""
         print("== Initialization: Testing kafka connection ==")
         sasl_password = os.getenv("KAFKA_PASSWORD")
@@ -254,7 +341,7 @@ class HistoryBroker:
         if (kafka_bootstrap_server == None):
             raise ValueError("Missing environment variable - KAFKA_BOOTSTRAP_SERVER")
 
-        config = {
+        config: dict[str, str | bool] = {
             # User-specific properties that you must set
             'bootstrap.servers': kafka_bootstrap_server,
             'sasl.username':     'mps-data-ingestion-publisher',
@@ -263,7 +350,6 @@ class HistoryBroker:
             # Fixed properties
             'security.protocol': 'SASL_PLAINTEXT',
             'sasl.mechanisms':   'SCRAM-SHA-512',
-            'group.id':          'mps-data-ingestion-publisher-group',
             # Disable auto-commit so we only commit after a successful ELOG write (at-least-once delivery)
             'enable.auto.commit': False
         }
@@ -274,52 +360,45 @@ class HistoryBroker:
             config.pop('sasl.password')
             config.pop('sasl.mechanisms', None)
 
-        # Create Consumer instance
-        self.consumer = Consumer(config)
+        self.consumer = Consumer({**config, 'group.id': GROUP_ID})
+        self.consumer.subscribe([KAFKA_TOPIC])
+        print(f"== Ready to consume messages from {KAFKA_TOPIC} kafka ==")
 
-        # Subscribe to topic
-        topic = "mps-data-ingestion"
-        self.consumer.subscribe([topic])
-        print(f"== Ready to consume messages from {topic} kafka ==")
-
-    def process_message(self, message: Message):
+    def process_message(self, message: Message) -> dict | None:
         """
-        Determines the type of the message, and sends it to the proper function for processing/including to the db
+        Looks up the message in the config DB and returns the dict used to render its ELOG entry,
+        or None if the message can't be processed.
         """
-        print("decodeing message") # TEMP
         if (message.type == HistoryMessageType.FaultStateType.value): # FaultStateType
-            data = self.process_fault(message)
+            processed_event = self.process_fault(message)
         elif (message.type == HistoryMessageType.BypassAnalogType.value or message.type == HistoryMessageType.BypassDigitalType.value\
               or message.type == HistoryMessageType.BypassApplicationType.value ): # BypassStateType
-            data = self.process_bypass(message)
+            processed_event = self.process_bypass(message)
         elif (message.type == HistoryMessageType.DigitalChannelType.value or message.type == HistoryMessageType.AnalogChannelType.value): # ChannelType (DigitalChannel or AnalogChannel)
-            data = self.process_channel(message)
+            processed_event = self.process_channel(message)
         elif (message.type == HistoryMessageType.BypassExpiredFaultType.value or message.type == HistoryMessageType.BypassExpiredApplicationType.value): # BypassExpiredType
-            data = self.process_bypass_expired(message)
+            processed_event = self.process_bypass_expired(message)
         else:
             print("DATA ERROR: Bad Message Type", message.to_string())
             return None
-        print(data) # TEMP
 
-        if data is None:
-            return None
+        if processed_event is not None:
+            processed_event['event_time'] = message.event_time
+        return processed_event
 
-        # Send the data to the Kubernetes infrastructure
-        return self.send_data(data)
-
-    def send_data(self, data):
+    def send_data(self, processed_event: dict) -> bool:
         """
         Writes processed data to ELOG backend API based on the message type
         """
-        print(f"Writing to the ELOG (mps-history) logbook through backend API for: {data}")
+        print(f"Writing to the ELOG (mps-history) logbook through backend API for: {processed_event}")
 
         # Extract relevant information from the data
-        data_type = data.get('type', 'unknown')
-        timestamp = data.get('timestamp', '0')
+        data_type = processed_event.get('type', 'unknown')
+        timestamp = processed_event.get('timestamp', '0')
         logbook_tag = None
         # Build title and text based on data type
         if data_type == 'bypass':
-            bypass_info = data.get('bypass', {})
+            bypass_info = processed_event.get('bypass', {})
             bypass_type = bypass_info.get('type', 'unknown')
             
             # Different handling based on bypass type
@@ -329,8 +408,8 @@ class HistoryBroker:
                 title = f"MPS New Bypass: {description}. Expires at: {expiration}"
                 text = (f"<p><b>Expiration</b>: {expiration}<br>"
                         f"<b>Timestamp</b>: {timestamp}<br>")
-                if 'new_state' in data:
-                    text += f"<b>New State</b>: {data['new_state']}"
+                if 'new_state' in processed_event:
+                    text += f"<b>New State</b>: {processed_event['new_state']}"
                 text += "</p>"
 
             elif bypass_type == 'application':
@@ -348,7 +427,7 @@ class HistoryBroker:
 
             logbook_tag = self.elog_bypass_tag_id
         elif data_type == "bypass_expired":
-            bypass_info = data.get('bypass', {})
+            bypass_info = processed_event.get('bypass', {})
             bypass_type = bypass_info.get('type', 'unknown')
 
             # Different handling based on bypass type
@@ -356,8 +435,8 @@ class HistoryBroker:
                 description = bypass_info.get('description', 'No description')
                 title = f"MPS Bypass Expired: {description}."
                 text = (f"<p><b>Expired</b>: {timestamp}<br>")
-                if 'new_state' in data:
-                    text += f"<b>New State</b>: {data['new_state']}"
+                if 'new_state' in processed_event:
+                    text += f"<b>New State</b>: {processed_event['new_state']}"
                 text += "</p>"
 
             elif bypass_type == 'application':
@@ -373,10 +452,10 @@ class HistoryBroker:
 
             logbook_tag = self.elog_bypass_tag_id
         elif data_type == 'channel':
-            channel_info = data.get('channel', {})
+            channel_info = processed_event.get('channel', {})
             channel_name = channel_info.get('name', 'Unknown')
-            old_state = data.get('old_state', 'Unknown')
-            new_state = data.get('new_state', 'Unknown')
+            old_state = processed_event.get('old_state', 'Unknown')
+            new_state = processed_event.get('new_state', 'Unknown')
             
             title = f"MPS Channel Change: {channel_name}. {old_state} -> {new_state}"
             text = (f"<p><b>Channel</b>: {channel_name}<br>"
@@ -389,11 +468,11 @@ class HistoryBroker:
             logbook_tag = self.elog_channel_tag_id
                     
         elif data_type == 'fault':
-            fault_info = data.get('fault', {})
+            fault_info = processed_event.get('fault', {})
             fault_id = fault_info.get('id', 'Unknown')
             description = fault_info.get('description', 'No description')
-            old_state = data.get('old_state', 'Unknown')
-            new_state = data.get('new_state', 'Unknown')
+            old_state = processed_event.get('old_state', 'Unknown')
+            new_state = processed_event.get('new_state', 'Unknown')
             
             title = f"MPS Fault State Change: {description}. {old_state} -> {new_state}"
             
@@ -414,113 +493,40 @@ class HistoryBroker:
         else:
             # Generic handler for other types
             title = f"MPS Event: {data_type}"
-            text = f"Event details: {str(data)}"
+            text = f"Event details: {str(processed_event)}"
 
-        try:
-            # Initialize with current date/time as fallback
-            event_at = datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-            summary_date = datetime.now().strftime('%Y-%m-%d')
-            
-            # Try to parse the timestamp from the data
-            if timestamp and timestamp != '0':
-                # Debug the timestamp format
-                print(f"Parsing timestamp: '{timestamp}'")
-                
-                try:
-                    # Assume timestamp is in 'YYYY-MM-DD HH:MM:SS.ffffff' format
-                    dt = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%f')
-                    
-                    # Format event_at to ISO 8601 with truncated microseconds
-                    event_at = dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-                    
-                    # Format summary_date as just the date part
-                    summary_date = dt.strftime('%Y-%m-%d')
-                    
-                    print(f"Successfully parsed timestamp to: {event_at} and date: {summary_date}")
-                except ValueError as ve:
-                    # Try alternative format without microseconds
-                    try:
-                        dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
-                        event_at = dt.strftime('%Y-%m-%dT%H:%M:%S.000Z')
-                        summary_date = dt.strftime('%Y-%m-%d')
-                        print(f"Parsed timestamp without microseconds: {event_at} and date: {summary_date}")
-                    except Exception as e2:
-                        print(f"Failed to parse timestamp with second format: {e2}")
-        except Exception as e:
-            print(f"Error handling timestamp: {e}")
+        return self.post_entry(title, text, [logbook_tag], processed_event.get('event_time'))
 
-
-        # Construct the payload
+    def post_entry(self, title: str, text: str, tags: list[str], event_time: datetime | None = None) -> bool:
+        """Create an ELOG entry. Returns True on success."""
+        if event_time is None:
+            event_time = datetime.now(timezone.utc)
         payload = {
             "logbooks": [self.elog_history_logbook_id],
             "title": title,
             "text": text,
             "note": "",
-            "tags": [logbook_tag],
+            "tags": [tag for tag in tags if tag],
             "attachments": [],
-            # "summarizes": { # We can skip this field
-            #     "shiftId": "",
-            #     "date": summary_date
-            # },
-            "eventAt": event_at,
+            "eventAt": event_time.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
             "userIdsToNotify": []
         }
-        print(f"Writing this payload to ELOG: {payload}")
+        print(f"Posting ELOG entry: {title}")
+        return self.elog_post(self.elog_endpoint, json=payload) is not None
 
-        # Send the request
+    def elog_post(self, url: str, **kwargs: Any) -> requests.Response | None:
+        """POST to the ELOG API. Returns the response, or None on any failure. Never logs the auth header."""
         try:
-            print(f"Sending request to: {self.elog_endpoint}")
-            print(f"Headers: {self.headers}")
-            response = requests.post(self.elog_endpoint, headers=self.headers, json=payload, timeout=15)
-            
-            print(f"Response status code: {response.status_code}")
-            print(f"Response headers: {response.headers}")
-            
-            # Try to raise for status
-            response.raise_for_status()
-            
-            print(f"Successfully sent to ELOG API: {response.status_code}")
-            return True
-        except requests.exceptions.HTTPError as http_err:
-            print(f"HTTP Error: {http_err}")
-            
-            # Print detailed response information
-            print(f"Response status code: {response.status_code}")
-            print(f"Response reason: {response.reason}")
-            
-            # Try to get response text (may contain error details)
-            try:
-                print(f"Response text: {response.text}")
-            except:
-                print("Could not get response text")
-            
-            # Try to parse JSON response (may contain error details)
-            try:
-                print(f"Response JSON: {response.json()}")
-            except:
-                print("Response is not valid JSON")
-            
-            print(f"Request URL: {response.request.url}")
-            print(f"Request method: {response.request.method}")
-            print(f"Request headers: {response.request.headers}")
-            print(f"Request body: {response.request.body}")
-            
-            return False
-        except requests.exceptions.ConnectionError as conn_err:
-            print(f"Connection Error: {conn_err}")
-            return False
-        except requests.exceptions.Timeout as timeout_err:
-            print(f"Timeout Error: {timeout_err}")
-            return False
-        except requests.exceptions.RequestException as req_err:
-            print(f"Request Error: {req_err}")
-            return False
-        except Exception as e:
-            print(f"General Error: {e}")
-            print(f"Failed payload: {payload}")
-            return False
+            response = requests.post(url, headers=self.headers, timeout=15, **kwargs)
+        except requests.exceptions.RequestException as e:
+            print(f"ELOG request to {url} failed: {e}")
+            return None
+        if not response.ok:
+            print(f"ELOG HTTP error {response.status_code} {response.reason} from {url}: {response.text[:500]}")
+            return None
+        return response
 
-    def process_channel(self, message: Message):
+    def process_channel(self, message: Message) -> dict | None:
         """
         Processes a channel (analog or digital device)
         Params:
@@ -561,11 +567,11 @@ class HistoryBroker:
             print(traceback.format_exc())
             return
         channel_info = {"type":"channel", "timestamp": str(message.timestamp), "old_state":old_state, "new_state":new_state,\
-                         "channel": {"number":channel.number, "name":channel.name,"card_number":app_card.number, "crate_loc":crate_loc, "link_node_id": link_node_id}}
+                         "channel": {"id":message.id, "number":channel.number, "name":channel.name,"card_number":app_card.number, "crate_loc":crate_loc, "link_node_id": link_node_id}}
         return channel_info
 
 
-    def process_fault(self, message: Message):
+    def process_fault(self, message: Message) -> dict | None:
         """
         Processes a single fault
         Params:
@@ -584,9 +590,9 @@ class HistoryBroker:
         
             # Determine if active, the fault id and description(fault.name)
             if message.new_value == 0:
-                f_info = {"id":message.id, "description":("FAULT CLEARED - " + fault.name), "active":False}
+                f_info = {"id":message.id, "name":fault.name, "description":("FAULT CLEARED - " + fault.name), "active":False}
             else:
-                f_info = {"id":fault.id, "description":fault.name, "active":True}
+                f_info = {"id":fault.id, "name":fault.name, "description":fault.name, "active":True}
 
             # 1) using the fault_state.id from new_state, it has many mitigation_id
             # 2) each mitigation_id has only 1 beam_destination_id and 1 beam_class_id
@@ -619,7 +625,7 @@ class HistoryBroker:
             return
         return all_fault_info
 
-    def process_bypass(self, message: Message):
+    def process_bypass(self, message: Message) -> dict | None:
         """
         Processes an analog/digital fault or application card bypass
         Params:
@@ -633,7 +639,7 @@ class HistoryBroker:
                 # TODO: Fix issue with application not being able to be sent because '-1' isn't allowed
                 # Get crate id, then get crate location
                 crate_id = self.conf_conn.session.query(models.ApplicationCard.crate_id)\
-                .filter(models.ApplicationCard.id==message.id)
+                .filter(models.ApplicationCard.id==message.id).scalar()
                 crate_loc = self.conf_conn.session.query(models.Crate)\
                 .filter(models.Crate.id==crate_id)\
                 .first().location
@@ -655,7 +661,7 @@ class HistoryBroker:
             return
         return bypass_info
     
-    def process_bypass_expired(self, message: Message):
+    def process_bypass_expired(self, message: Message) -> dict | None:
         """
         Processes an analog/digital fault or application card expired bypass
         Params:
@@ -667,7 +673,7 @@ class HistoryBroker:
             if (message.type == HistoryMessageType.BypassExpiredApplicationType.value):
                 # Get crate id, then get crate location
                 crate_id = self.conf_conn.session.query(models.ApplicationCard.crate_id)\
-                .filter(models.ApplicationCard.id==message.id)
+                .filter(models.ApplicationCard.id==message.id).scalar()
                 crate_loc = self.conf_conn.session.query(models.Crate)\
                 .filter(models.Crate.id==crate_id)\
                 .first().location
@@ -683,7 +689,7 @@ class HistoryBroker:
             return
         return bypass_info
 
-    def get_fault_state_from_fault(self, fstate_id):
+    def get_fault_state_from_fault(self, fstate_id: int) -> str:
         """
         Returns the fault state based off the fault_state.id
         """
@@ -692,7 +698,7 @@ class HistoryBroker:
         fault_state = self.conf_conn.session.query(models.FaultState).filter(models.FaultState.id==fstate_id).first()
         return fault_state.name
     
-def main():
+def main() -> None:
     main_processor = HistoryBroker()
     main_processor.process_loop()
 
