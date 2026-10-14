@@ -97,30 +97,40 @@ def create_socket(host, env, conf_conn):
         # Expect at ~20 s: 1 fault summary (3 transitions), 1 channel summary (3 transitions)
         repeated = [[fault_type, 5, 21, 20, 0], [digital_type, 133, 1, 0, 0],
                     [fault_type, 5, 20, 21, 0], [digital_type, 133, 0, 1, 0],
+                    [fault_type, 5, 21, 20, 0], [digital_type, 133, 1, 0, 0]
+                    [fault_type, 5, 20, 21, 0], [digital_type, 133, 0, 1, 0],
                     [fault_type, 5, 21, 20, 0], [digital_type, 133, 1, 0, 0]]
         # Expect at ~20 s: 1 normal fault entry, 1 normal channel entry
         single = [[fault_type, 6, 23, 22, 0],
                   [analog_type, 1, 0, 1, 0]]
-        # Expect immediately: 3 normal bypass entries
-        bypasses = [[HistoryMessageType.BypassDigitalType.value, 5, 20, 21, cur_time + 5],
-                    [HistoryMessageType.BypassAnalogType.value, 6, 1, 0, cur_time + 4],
-                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 1, cur_time + 3]]
-        # Expect immediately: 3 normal bypass expired entries
-        bypasses_expired = [[HistoryMessageType.BypassExpiredFaultType.value, 5, 0, 1, 0],
-                            [HistoryMessageType.BypassExpiredFaultType.value, 6, 0, 1, 0],
-                            [HistoryMessageType.BypassExpiredApplicationType.value, 1, 0, 1, 0]]
+        # Each bypass expires on its own (app card at 4 s, analog at 7 s, digital at 10 s), and its expired
+        # message is sent at that expiration time. Expect each entry immediately as it arrives (6 normal entries).
+        # [bypass type, id, old, new], seconds until it expires, expired message
+        bypass_schedule = [
+            ([HistoryMessageType.BypassApplicationType.value, 1, 0, 1], 4,
+             [HistoryMessageType.BypassExpiredApplicationType.value, 1, 0, 1, 0]),
+            ([HistoryMessageType.BypassAnalogType.value, 6, 1, 0], 7,
+             [HistoryMessageType.BypassExpiredFaultType.value, 6, 0, 1, 0]),
+            ([HistoryMessageType.BypassDigitalType.value, 5, 20, 21], 10,
+             [HistoryMessageType.BypassExpiredFaultType.value, 5, 0, 1, 0]),
+        ]
         # Sent 25 s after fault 5's first event, so it opens a new window instead of extending the old one.
         # Expect at ~45 s: 1 normal fault entry
         after_window = [[fault_type, 5, 20, 21, 0]]
 
-        send(repeated, 1)
+        start = time.time()
+        send(repeated, 1.1)
         send(single, 0.000001)
-        send(bypasses, 0.000001)
-        print("waiting 5 secs to send in bypass expired messages")
-        time.sleep(5)
-        send(bypasses_expired, 0.000001)
+
+        bypass_time = int(time.time())
+        send([bypass + [bypass_time + expires_in] for bypass, expires_in, _ in bypass_schedule], 0.000001)
+        for _, expires_in, expired in bypass_schedule:
+            time.sleep(max(0, bypass_time + expires_in - time.time()))
+            print(f"bypass expired after {expires_in} s")
+            send([expired], 0.000001)
+
         print("waiting until the first window has closed")
-        time.sleep(14)
+        time.sleep(max(0, start + 25 - time.time()))
         send(after_window, 0.000001)
         print("done, expect 11 ELOG entries (2 summaries, 9 normal)")
 

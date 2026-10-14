@@ -639,7 +639,7 @@ class HistoryBroker:
                 # TODO: Fix issue with application not being able to be sent because '-1' isn't allowed
                 # Get crate id, then get crate location
                 crate_id = self.conf_conn.session.query(models.ApplicationCard.crate_id)\
-                .filter(models.ApplicationCard.id==message.id)
+                .filter(models.ApplicationCard.id==message.id).scalar()
                 crate_loc = self.conf_conn.session.query(models.Crate)\
                 .filter(models.Crate.id==crate_id)\
                 .first().location
@@ -673,7 +673,7 @@ class HistoryBroker:
             if (message.type == HistoryMessageType.BypassExpiredApplicationType.value):
                 # Get crate id, then get crate location
                 crate_id = self.conf_conn.session.query(models.ApplicationCard.crate_id)\
-                .filter(models.ApplicationCard.id==message.id)
+                .filter(models.ApplicationCard.id==message.id).scalar()
                 crate_loc = self.conf_conn.session.query(models.Crate)\
                 .filter(models.Crate.id==crate_id)\
                 .first().location
