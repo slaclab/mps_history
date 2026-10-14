@@ -46,7 +46,7 @@ def main():
 
     # Usage
     if dev:
-        current_mps_configuration_dir = "/afs/slac/g/lcls/physics/mps_configuration/9999-99-99-z"
+        current_mps_configuration_dir = "/afs/slac/g/lcls/physics/mps_configuration/dev-history"
     else:
         current_mps_configuration_dir = "/afs/slac/g/lcls/physics/mps_configuration/current"
     db_filename = get_db_filepath(current_mps_configuration_dir)

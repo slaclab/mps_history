@@ -86,30 +86,32 @@ def create_socket(host, env, conf_conn):
                 time.sleep(gap_s)
 
         # IDs are from mps_config-9999-99-99-z.db
-        # Fault 1 (Test Digital 0): fault states 1 = Is Faulted, 2 = Is Ok. Fault 2 (Test Digital 1): 3/4.
-        # Channel 1 = MPS:B34:1:TEST_DI0 (digital), channel 5 = MPS:B34:0:I0_LOSS (analog)
+        # Fault 5 = LN49 (SIOC GUNB MP02) Alive: fault states 20 = Is Faulted, 21 = Is Ok
+        # Fault 6 = SOL1B (SOLN:GUNB:212) Temperature Interlock: fault states 22 = Is Faulted, 23 = Is Ok
+        # Channel 133 = SIOC:GUNB:MP02:HEARTBEAT (digital), channel 1 = SOLN:GUNB:212:I0_BACT (analog)
+        # Application card 1 = card number 1, crate L2KA00-0517
         fault_type = HistoryMessageType.FaultStateType.value
         digital_type = HistoryMessageType.DigitalChannelType.value
         analog_type = HistoryMessageType.AnalogChannelType.value
 
         # Expect at ~20 s: 1 fault summary (3 transitions), 1 channel summary (3 transitions)
-        repeated = [[fault_type, 1, 2, 1, 0], [digital_type, 1, 0, 1, 0],
-                    [fault_type, 1, 1, 2, 0], [digital_type, 1, 1, 0, 0],
-                    [fault_type, 1, 2, 1, 0], [digital_type, 1, 0, 1, 0]]
+        repeated = [[fault_type, 5, 21, 20, 0], [digital_type, 133, 1, 0, 0],
+                    [fault_type, 5, 20, 21, 0], [digital_type, 133, 0, 1, 0],
+                    [fault_type, 5, 21, 20, 0], [digital_type, 133, 1, 0, 0]]
         # Expect at ~20 s: 1 normal fault entry, 1 normal channel entry
-        single = [[fault_type, 2, 4, 3, 0],
-                  [analog_type, 5, 0, 1, 0]]
+        single = [[fault_type, 6, 23, 22, 0],
+                  [analog_type, 1, 0, 1, 0]]
         # Expect immediately: 3 normal bypass entries
-        bypasses = [[HistoryMessageType.BypassDigitalType.value, 3, 0, 1, cur_time + 5],
-                    [HistoryMessageType.BypassAnalogType.value, 5, 1, 0, cur_time + 4],
+        bypasses = [[HistoryMessageType.BypassDigitalType.value, 5, 20, 21, cur_time + 5],
+                    [HistoryMessageType.BypassAnalogType.value, 6, 1, 0, cur_time + 4],
                     [HistoryMessageType.BypassApplicationType.value, 1, 0, 1, cur_time + 3]]
         # Expect immediately: 3 normal bypass expired entries
-        bypasses_expired = [[HistoryMessageType.BypassExpiredFaultType.value, 3, 0, 1, 0],
-                            [HistoryMessageType.BypassExpiredFaultType.value, 5, 0, 1, 0],
+        bypasses_expired = [[HistoryMessageType.BypassExpiredFaultType.value, 5, 0, 1, 0],
+                            [HistoryMessageType.BypassExpiredFaultType.value, 6, 0, 1, 0],
                             [HistoryMessageType.BypassExpiredApplicationType.value, 1, 0, 1, 0]]
-        # Sent 25 s after fault 1's first event, so it opens a new window instead of extending the old one.
+        # Sent 25 s after fault 5's first event, so it opens a new window instead of extending the old one.
         # Expect at ~45 s: 1 normal fault entry
-        after_window = [[fault_type, 1, 1, 2, 0]]
+        after_window = [[fault_type, 5, 20, 21, 0]]
 
         send(repeated, 1)
         send(single, 0.000001)
