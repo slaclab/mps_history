@@ -375,11 +375,11 @@ int main(int argc, char **argv) {
                                       (struct sockaddr*)&client_addr, &client_len);
       
       if (bytes_received == sizeof(Message)) {
-        // Properly received a complete Message struct
-        Message* message = reinterpret_cast<Message*>(buffer);
+        
 
         // Optional: Debug/logging
         #ifdef DEBUG
+            Message* message = reinterpret_cast<Message*>(buffer);
             char client_ip[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, INET_ADDRSTRLEN);
             

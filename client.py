@@ -10,7 +10,7 @@ sys.path.insert(1, '/home/pnispero/mps_history/mps_database/')
 """ TEMP """
 
 from mps_database import mps_config, models
-from enum import Enum
+from mps_processor.HistoryMessageType import HistoryMessageType
 
 import config
 
@@ -24,16 +24,6 @@ from datetime import datetime
 """ TEMP """
 import time
 """ TEMP """
-
-class HistoryMessageType(Enum):
-  FaultStateType=1         # Fault change state (Faulted/Not Faulted)
-  BypassDigitalType=2      # Bypass digital fault
-  BypassAnalogType=3       # Bypass analog fault
-  BypassApplicationType=4  # Bypass analog fault
-  DigitalChannelType=5     # Change in digital channel
-  AnalogChannelType=6      # Change in analog device threshold status
-  BypassExpiredFaultType=7    # Bypass expired fault
-  BypassExpiredApplicationType=8    # Bypass expired application card
 
 def main():
     """
@@ -90,30 +80,47 @@ def create_socket(host, env, conf_conn):
         cur_time = int(datetime.now().strftime("%s"))
         print(cur_time)
 
-        # send fault
-        data_set = [[HistoryMessageType.FaultStateType.value, 1, 1, 2, 1063],\
-                    [HistoryMessageType.FaultStateType.value, 1, 2, 1, 1063],\
-                    [HistoryMessageType.DigitalChannelType.value, 3, 0, 1, 0],\
-                    [HistoryMessageType.AnalogChannelType.value, 5, 0, 1, 0],\
-                    [HistoryMessageType.AnalogChannelType.value, 6, 0, 2, 0],\
-                    [HistoryMessageType.BypassDigitalType.value, 3, 0, 1, cur_time + 5],\
-                    [HistoryMessageType.BypassAnalogType.value, 5, 1, 0, cur_time + 4],\
-                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 1, cur_time + 3]]
-        data_set_delay = [[HistoryMessageType.BypassExpiredFaultType.value, 3, 0, 1, 0],\
-                          [HistoryMessageType.BypassExpiredFaultType.value, 5, 0, 1, 0],\
-                          [HistoryMessageType.BypassExpiredApplicationType.value, 1, 0, 1, 0]]
-
-        # send same data 1 times over 
-        num_times_to_send = 1
-        for i in range(num_times_to_send): # 7 packets send
+        def send(data_set, gap_s):
             for data in data_set:
-                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-                time.sleep(0.000001) # 1 us between each send
-            print("waiting 5 secs to send in bypass expired messages")
-            time.sleep(5)
-            for data in data_set_delay:
-                s.sendall(struct.pack('5I', data[0], data[1], data[2], data[3], data[4]))
-                time.sleep(0.000001) # 1 us between each send
+                s.sendall(struct.pack('5I', *data))
+                time.sleep(gap_s)
+
+        # IDs are from mps_config-9999-99-99-z.db
+        # Fault 1 (Test Digital 0): fault states 1 = Is Faulted, 2 = Is Ok. Fault 2 (Test Digital 1): 3/4.
+        # Channel 1 = MPS:B34:1:TEST_DI0 (digital), channel 5 = MPS:B34:0:I0_LOSS (analog)
+        fault_type = HistoryMessageType.FaultStateType.value
+        digital_type = HistoryMessageType.DigitalChannelType.value
+        analog_type = HistoryMessageType.AnalogChannelType.value
+
+        # Expect at ~20 s: 1 fault summary (3 transitions), 1 channel summary (3 transitions)
+        repeated = [[fault_type, 1, 2, 1, 0], [digital_type, 1, 0, 1, 0],
+                    [fault_type, 1, 1, 2, 0], [digital_type, 1, 1, 0, 0],
+                    [fault_type, 1, 2, 1, 0], [digital_type, 1, 0, 1, 0]]
+        # Expect at ~20 s: 1 normal fault entry, 1 normal channel entry
+        single = [[fault_type, 2, 4, 3, 0],
+                  [analog_type, 5, 0, 1, 0]]
+        # Expect immediately: 3 normal bypass entries
+        bypasses = [[HistoryMessageType.BypassDigitalType.value, 3, 0, 1, cur_time + 5],
+                    [HistoryMessageType.BypassAnalogType.value, 5, 1, 0, cur_time + 4],
+                    [HistoryMessageType.BypassApplicationType.value, 1, 0, 1, cur_time + 3]]
+        # Expect immediately: 3 normal bypass expired entries
+        bypasses_expired = [[HistoryMessageType.BypassExpiredFaultType.value, 3, 0, 1, 0],
+                            [HistoryMessageType.BypassExpiredFaultType.value, 5, 0, 1, 0],
+                            [HistoryMessageType.BypassExpiredApplicationType.value, 1, 0, 1, 0]]
+        # Sent 25 s after fault 1's first event, so it opens a new window instead of extending the old one.
+        # Expect at ~45 s: 1 normal fault entry
+        after_window = [[fault_type, 1, 1, 2, 0]]
+
+        send(repeated, 1)
+        send(single, 0.000001)
+        send(bypasses, 0.000001)
+        print("waiting 5 secs to send in bypass expired messages")
+        time.sleep(5)
+        send(bypasses_expired, 0.000001)
+        print("waiting until the first window has closed")
+        time.sleep(14)
+        send(after_window, 0.000001)
+        print("done, expect 11 ELOG entries (2 summaries, 9 normal)")
 
         return """ TEMP"""
 
